@@ -1,0 +1,450 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL") 
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum RolUsuario {
+  ADMIN
+  ASESOR
+  ANALISTA
+  AUDITOR
+}
+
+enum EstadoUsuario {
+  ACTIVO
+  INACTIVO
+}
+
+enum TipoDocumento {
+  DNI
+  CE
+  PASAPORTE
+}
+
+enum EstadoCliente {
+  ACTIVO
+  ARCHIVADO
+}
+
+enum EstadoVehiculo {
+  DISPONIBLE
+  ARCHIVADO
+}
+
+enum Moneda {
+  PEN
+  USD
+}
+
+enum TipoTasa {
+  EFECTIVA
+  NOMINAL
+}
+
+enum Capitalizacion {
+  DIARIA
+  SEMANAL
+  QUINCENAL
+  MENSUAL
+  BIMESTRAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+enum GraciaTipo {
+  TOTAL
+  PARCIAL
+}
+
+enum TipoValorResidual {
+  MONTO
+  PORCENTAJE
+}
+
+enum TipoVehiculo {
+  SEDAN
+  SUV
+  CAMIONETA
+  PICKUP
+  HATCHBACK
+  COUPE
+  STATION_WAGON
+  VAN
+  OTRO
+}
+
+enum Transmision {
+  MANUAL
+  AUTOMATICA
+  CVT
+  DUAL
+}
+
+enum Combustible {
+  GASOLINA
+  DIESEL
+  HIBRIDO
+  ELECTRICO
+  GLP
+}
+
+enum EstadoCotizacion {
+  BORRADOR
+  SIMULADA
+  PRESENTADA
+  APROBADA
+  RECHAZADA
+  ARCHIVADA
+  ARCHIVADA_VERSION
+}
+
+enum TipoCuota {
+  GRACIA_TOTAL
+  GRACIA_PARCIAL
+  NORMAL
+  RESIDUAL
+}
+
+enum EstadoOperacion {
+  ACTIVA
+  CANCELADA
+  CERRADA
+}
+
+enum TipoPago {
+  CUOTA_NORMAL
+  ANTICIPADO_PARCIAL
+  CANCELACION_TOTAL
+}
+
+enum CanalPago {
+  VENTANILLA
+  TRANSFERENCIA
+  APP
+  DEBITO_AUTOMATICO
+  OTRO
+}
+
+enum ModalidadAnticipado {
+  REDUCIR_PLAZO
+  REDUCIR_CUOTA
+}
+
+enum AccionAudit {
+  CREACION
+  EDICION
+  ARCHIVADO
+  LOGIN
+  LOGOUT
+  ELIMINACION
+  CAMBIO_ESTADO
+}
+
+// ============================================
+// ENTIDADES
+// ============================================
+
+model Usuario {
+  id            BigInt         @id @default(autoincrement())
+  usuario       String         @unique @db.VarChar(50)
+  contrasena    String         @db.VarChar(255) // Hash bcrypt
+  nombreCompleto String        @map("nombre_compl") @db.VarChar(150)
+  rol           RolUsuario
+  estado        EstadoUsuario  @default(ACTIVO)
+  creadoEn      DateTime       @default(now()) @map("creado_en") @db.Timestamp(0)
+
+  // Relaciones
+  cotizaciones  Cotizacion[]
+  clientesCreados Cliente[]   @relation("ClienteCreador")
+  vehiculosCreados Vehiculo[] @relation("VehiculoCreador")
+  pagos         Pago[]
+  auditLogs     AuditLog[]
+
+  @@map("usuarios")
+}
+
+model Cliente {
+  id               BigInt         @id @default(autoincrement())
+  tipoDocumento    TipoDocumento  @map("tipo_documento")
+  numDocumento     String         @unique @map("num_documento") @db.VarChar(15)
+  nombres          String         @db.VarChar(100)
+  apPaterno        String         @map("ap_paterno") @db.VarChar(100)
+  apMaterno        String?        @map("ap_materno") @db.VarChar(100)
+  celular          String         @db.VarChar(9)
+  correo           String         @unique @db.VarChar(150)
+  direccion        String         @db.VarChar(200)
+  fecNacimiento    DateTime?      @map("fec_nacimiento") @db.Date
+  ingresosMens     Decimal?       @map("ingresos_mens") @db.Decimal(12, 2)
+  monedaIngres     Moneda?        @map("moneda_ingres")
+  situacionLab     String?        @map("situacion_lab") @db.VarChar(20)
+  empresaEmpl      String?        @map("empresa_empl") @db.VarChar(150)
+  estado           EstadoCliente  @default(ACTIVO)
+  creadoEn         DateTime       @default(now()) @map("creado_en") @db.Timestamp(0)
+  creadoPor        BigInt         @map("creado_por")
+
+  // Relaciones
+  creador          Usuario        @relation("ClienteCreador", fields: [creadoPor], references: [id])
+  cotizaciones     Cotizacion[]
+
+  @@index([numDocumento])
+  @@map("clientes")
+}
+
+model Vehiculo {
+  id               BigInt         @id @default(autoincrement())
+  marca            String         @db.VarChar(50)
+  modelo           String         @db.VarChar(100)
+  version          String?        @db.VarChar(100)
+  anio             Int            @db.SmallInt
+  precioLista      Decimal        @map("precio_lista") @db.Decimal(12, 2)
+  monedaPrecio     Moneda         @map("moneda_precio")
+  concesionario    String         @db.VarChar(150)
+  valResidEst      Decimal?       @map("val_resid_est") @db.Decimal(12, 2)
+  tipoValResid     TipoValorResidual? @map("tipo_val_resid")
+  tipoVehiculo     TipoVehiculo?  @map("tipo_vehiculo")
+  transmision      Transmision?
+  combustible      Combustible?
+  estado           EstadoVehiculo @default(DISPONIBLE)
+  creadoEn         DateTime       @default(now()) @map("creado_en") @db.Timestamp(0)
+  creadoPor        BigInt         @map("creado_por")
+
+  // Relaciones
+  creador          Usuario        @relation("VehiculoCreador", fields: [creadoPor], references: [id])
+  cotizaciones     Cotizacion[]
+
+  @@index([marca, modelo])
+  @@map("vehiculos")
+}
+
+model Cotizacion {
+  id               BigInt          @id @default(autoincrement())
+  idCliente        BigInt          @map("id_cliente")
+  idVehiculo       BigInt          @map("id_vehiculo")
+  idUsuario        BigInt          @map("id_usuario")
+  version          Int             @default(1) @db.SmallInt
+  estado           EstadoCotizacion @default(BORRADOR)
+  
+  // Configuración financiera
+  monedaOp         Moneda          @map("moneda_op")
+  tipoTasa         TipoTasa        @map("tipo_tasa")
+  tasaIngresada    Decimal         @map("tasa_ingresada") @db.Decimal(8, 4)
+  capitalizacion   Capitalizacion?
+  tea              Decimal         @db.Decimal(8, 6)
+  tem              Decimal         @db.Decimal(10, 8)
+  
+  // Parámetros del crédito
+  precioVeh        Decimal         @map("precio_veh") @db.Decimal(12, 2)
+  cuotaIniPct      Decimal         @map("cuota_ini_pct") @db.Decimal(5, 2)
+  cuotaIniMnt      Decimal         @map("cuota_ini_mnt") @db.Decimal(12, 2)
+  montoFinanc      Decimal         @map("monto_financ") @db.Decimal(12, 2)
+  plazoMeses       Int             @map("plazo_meses") @db.SmallInt
+  fecDesembolso    DateTime        @map("fec_desembolso") @db.Date
+  fec1eraCuota     DateTime        @map("fec_1era_cuota") @db.Date
+  
+  // Gracia
+  graciaFlag       Boolean         @default(false) @map("gracia_flag")
+  graciaTipo       GraciaTipo?
+  graciaMeses      Int?            @map("gracia_meses") @db.SmallInt
+  
+  // Residual (Compra Inteligente)
+  residualFlag     Boolean         @default(false) @map("residual_flag")
+  residualMonto    Decimal?        @map("residual_monto") @db.Decimal(12, 2)
+  
+  // Seguros y gastos
+  segDesgrav       Decimal?        @map("seg_desgrav") @db.Decimal(6, 4)
+  segVehicular     Decimal?        @map("seg_vehi") @db.Decimal(10, 2)
+  gastoGps         Decimal?        @map("gasto_gps") @db.Decimal(10, 2)
+  gastoNotarial    Decimal?        @map("gasto_not") @db.Decimal(10, 2)
+  
+  // Indicadores financieros calculados
+  tcea             Decimal         @db.Decimal(8, 4)
+  vanDeudor        Decimal         @map("van_deudor") @db.Decimal(14, 2)
+  tirMensual       Decimal         @map("tir_m") @db.Decimal(8, 6)
+  tirAnual         Decimal         @map("tir_a") @db.Decimal(8, 4)
+  totPagado        Decimal         @map("tot_pagado") @db.Decimal(14, 2)
+  costoCredito     Decimal         @map("costo_cred") @db.Decimal(14, 2)
+  
+  // Metadata
+  motivoEdicion    String?         @map("motivo_ed") @db.VarChar(200)
+  creadoEn         DateTime        @default(now()) @map("creado_en") @db.Timestamp(0)
+
+  // Relaciones
+  cliente          Cliente         @relation(fields: [idCliente], references: [id])
+  vehiculo         Vehiculo        @relation(fields: [idVehiculo], references: [id])
+  usuario          Usuario         @relation(fields: [idUsuario], references: [id])
+  cuotas           Cuota[]
+  operacion        Operacion?
+
+  @@index([idCliente])
+  @@index([idVehiculo])
+  @@index([estado])
+  @@index([creadoEn])
+  @@map("cotizaciones")
+}
+
+model Cuota {
+  id              BigInt      @id @default(autoincrement())
+  idCotizacion    BigInt      @map("id_cotizacion")
+  numero          Int         @db.SmallInt
+  tipoCuota       TipoCuota   @map("tipo_cuota")
+  fecVencimiento  DateTime    @map("fec_vencimient") @db.Date
+  saldoInicial    Decimal     @map("saldo_inicial") @db.Decimal(12, 2)
+  interes         Decimal     @db.Decimal(12, 2)
+  amortizacion    Decimal     @db.Decimal(12, 2)
+  segDesgravamen  Decimal     @map("seg_desgravame") @db.Decimal(10, 2)
+  segVehicular    Decimal     @map("seg_vehicular") @db.Decimal(10, 2)
+  otrosGastos     Decimal     @map("otros_gastos") @db.Decimal(10, 2)
+  cuotaTotal      Decimal     @map("cuota_total") @db.Decimal(12, 2)
+  saldoFinal      Decimal     @map("saldo_final") @db.Decimal(12, 2)
+
+  // Relaciones
+  cotizacion      Cotizacion  @relation(fields: [idCotizacion], references: [id], onDelete: Cascade)
+
+  @@unique([idCotizacion, numero])
+  @@index([idCotizacion])
+  @@index([fecVencimiento])
+  @@map("cuotas")
+}
+
+model Operacion {
+  id              BigInt          @id @default(autoincrement())
+  idCotizacion    BigInt          @unique @map("id_cotizacion")
+  estadoOp        EstadoOperacion @map("estado_op")
+  fecInicio       DateTime        @map("fec_inicio") @db.Date
+  fecTermino      DateTime?       @map("fec_termino") @db.Date
+  saldoActual     Decimal         @map("saldo_actual") @db.Decimal(12, 2)
+  versionCrono    Int             @map("version_crono") @db.SmallInt
+  creadoEn        DateTime        @default(now()) @map("creado_en") @db.Timestamp(0)
+
+  // Relaciones
+  cotizacion      Cotizacion      @relation(fields: [idCotizacion], references: [id])
+  pagos           Pago[]
+
+  @@index([estadoOp])
+  @@map("operaciones")
+}
+
+model Pago {
+  id              BigInt              @id @default(autoincrement())
+  idOperacion     BigInt              @map("id_operac")
+  fechaPago       DateTime            @map("fecha_pago") @db.Date
+  montoTotal      Decimal             @map("monto_tot") @db.Decimal(12, 2)
+  tipoPago        TipoPago            @map("tipo_pago")
+  cuotaAplicada   Decimal             @map("cuota_aplic") @db.Decimal(12, 2)
+  interesDia      Decimal             @map("interes_dia") @db.Decimal(12, 2)
+  capitalAmort    Decimal             @map("capital_am") @db.Decimal(12, 2)
+  saldoAnterior   Decimal             @map("saldo_ant") @db.Decimal(12, 2)
+  saldoNuevo      Decimal             @map("saldo_nvo") @db.Decimal(12, 2)
+  modalidad       ModalidadAnticipado?
+  penalidad       Decimal             @default(0) @db.Decimal(10, 2)
+  canalPago       CanalPago           @map("canal_pago")
+  referencia      String              @db.VarChar(50)
+  idUsuario       BigInt              @map("id_usuario")
+  creadoEn        DateTime            @default(now()) @map("creado_en") @db.Timestamp(0)
+
+  // Relaciones
+  operacion       Operacion           @relation(fields: [idOperacion], references: [id])
+  usuario         Usuario             @relation(fields: [idUsuario], references: [id])
+
+  @@index([idOperacion])
+  @@index([fechaPago])
+  @@map("pagos")
+}
+
+model AuditLog {
+  id              BigInt      @id @default(autoincrement())
+  entidad         String      @db.VarChar(30)
+  idEntidad       BigInt      @map("id_entidad")
+  accion          AccionAudit
+  camposAnteriores Json?      @map("campos_anteriores")
+  camposNuevos    Json?       @map("campos_nuevos")
+  idUsuario       BigInt      @map("id_usuario")
+  fechaHora       DateTime    @default(now()) @map("fecha_hora") @db.Timestamp(0)
+
+  // Relaciones
+  usuario         Usuario     @relation(fields: [idUsuario], references: [id])
+
+  @@index([entidad, idEntidad])
+  @@index([fechaHora])
+  @@map("audit_log")
+}
+
+// ============================================
+// BETTER AUTH TABLES
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id            String    @id @default(cuid())
+  expiresAt     DateTime?
+  token         String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  ipAddress     String?
+  userAgent     String?
+  userId        String    @map("user_id")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                 String    @id @default(cuid())
+  accountId          String    @map("account_id")
+  providerId         String    @map("provider_id")
+  userId             String    @map("user_id")
+  accessToken        String?   @map("access_token")
+  refreshToken       String?   @map("refresh_token")
+  idToken            String?   @map("id_token")
+  accessTokenExpiresAt DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope              String?
+  password           String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@map("accounts")
+}
+
+model Verification {
+  id           String    @id @default(cuid())
+  identifier   String
+  value        String
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verifications")
+}
