@@ -38,6 +38,12 @@ export default async function HomePage() {
           >
             Registrarse
           </Link>
+          <Link
+            href="/transparencia"
+            className="px-8 py-4 border-2 border-cyan-300 text-cyan-100 font-semibold rounded-lg hover:bg-cyan-500/10 transition-colors"
+          >
+            Centro de Transparencia
+          </Link>
         </div>
         
         <p className="text-sm text-slate-400">

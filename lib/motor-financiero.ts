@@ -329,8 +329,12 @@ export function generarCronograma(
 // ALGORITMO 7: Calcular TCEA (Newton-Raphson)
 // ============================================
 
-export function calcularTCEA(montoFinanciado: number, cronograma: Cuota[]): number {
-  let r = calcularTEM(montoFinanciado > 0 ? 0.18 : 0.01); // Semilla inicial
+export function calcularTCEA(
+  montoFinanciado: number,
+  cronograma: Cuota[],
+  semillaMensual: number
+): number {
+  let r = semillaMensual; // Semilla inicial = TEM de la operación
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
     let f = 0;
@@ -386,8 +390,12 @@ export function calcularVAN(montoFinanciado: number, cronograma: Cuota[], tem: n
 // ALGORITMO 9: Calcular TIR del Deudor
 // ============================================
 
-export function calcularTIR(montoFinanciado: number, cronograma: Cuota[]): number {
-  let r = calcularTEM(montoFinanciado > 0 ? 0.18 : 0.01);
+export function calcularTIR(
+  montoFinanciado: number,
+  cronograma: Cuota[],
+  semillaMensual: number
+): number {
+  let r = semillaMensual;
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
     let f = -montoFinanciado;
@@ -514,9 +522,9 @@ export function calcularCredito(params: ParametrosCredito): ResultadoFinanciero 
   );
 
   // Paso 7: Calcular indicadores
-  const tcea = calcularTCEA(montoFinanciado, cronograma);
+  const tcea = calcularTCEA(montoFinanciado, cronograma, tem);
   const vanDeudor = calcularVAN(montoFinanciado, cronograma, tem);
-  const tirMensual = calcularTIR(montoFinanciado, cronograma);
+  const tirMensual = calcularTIR(montoFinanciado, cronograma, tem);
   const tirAnual = Math.pow(1 + tirMensual, 12) - 1;
 
   // Paso 8: Calcular totales
