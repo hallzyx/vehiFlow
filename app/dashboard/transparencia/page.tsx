@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation"
+import { TransparenciaIndex } from "@/components/transparencia/transparencia-index"
 
-export default function DashboardTransparenciaRedirectPage() {
-  redirect("/transparencia")
+export const dynamic = "force-dynamic"
+
+export default function DashboardTransparenciaPage() {
+  return <TransparenciaIndex basePath="/dashboard/transparencia" />
 }

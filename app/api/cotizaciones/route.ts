@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
+import { inferirRolDesdeEmail, obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 import { z } from "zod"
 
 const capitalizacionMap: Record<string, number> = {
@@ -84,32 +85,78 @@ const schemaCrearCotizacion = z.object({
   }),
 })
 
-async function getAsesorId() {
-  const asesorExistente = await prisma.usuario.findFirst({ orderBy: { id: "asc" } })
-  if (asesorExistente) return asesorExistente.id
-
-  const creado = await prisma.usuario.create({
-    data: {
-      usuario: "asesor_demo",
-      contrasena: "better_auth_managed",
-      nombreCompleto: "Asesor Demo",
-      rol: "ASESOR",
-      estado: "ACTIVO",
-    },
-  })
-
-  return creado.id
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const hdrs = await headers()
+    const session = await auth.api.getSession({ headers: hdrs })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    }
+
+    const rol = inferirRolDesdeEmail(session.user?.email)
+
+    const { searchParams } = new URL(req.url)
+    const search = (searchParams.get("search") || "").trim()
+    const estado = (searchParams.get("estado") || "TODOS").trim()
+    const moneda = (searchParams.get("moneda") || "TODOS").trim()
+    const tipoTasa = (searchParams.get("tipoTasa") || "TODOS").trim()
+    const fechaDesde = searchParams.get("fechaDesde")
+    const fechaHasta = searchParams.get("fechaHasta")
+    const page = Math.max(1, Number(searchParams.get("page") || 1))
+    const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize") || 10)))
+
+    const where: Prisma.CotizacionWhereInput = {}
+
+    if (rol === "ASESOR") {
+      const asesorId = await obtenerUsuarioInternoDesdeSesion(session.user)
+      where.idUsuario = asesorId
+    }
+
+    if (estado !== "TODOS") {
+      where.estado = estado as any
+    }
+
+    if (moneda !== "TODOS") {
+      where.monedaOp = moneda as any
+    }
+
+    if (tipoTasa !== "TODOS") {
+      where.tipoTasa = tipoTasa as any
+    }
+
+    if (fechaDesde || fechaHasta) {
+      where.creadoEn = {}
+      if (fechaDesde) where.creadoEn.gte = new Date(fechaDesde)
+      if (fechaHasta) {
+        const f = new Date(fechaHasta)
+        f.setHours(23, 59, 59, 999)
+        where.creadoEn.lte = f
+      }
+    }
+
+    if (search) {
+      where.OR = [
+        { cliente: { nombres: { contains: search } } },
+        { cliente: { apPaterno: { contains: search } } },
+        { cliente: { apMaterno: { contains: search } } },
+        { cliente: { numDocumento: { contains: search } } },
+        { vehiculo: { marca: { contains: search } } },
+        { vehiculo: { modelo: { contains: search } } },
+        { vehiculo: { version: { contains: search } } },
+      ]
+    }
+
+    const total = await prisma.cotizacion.count({ where })
+
     const data = await prisma.cotizacion.findMany({
+      where,
       include: {
         cliente: true,
         vehiculo: true,
       },
       orderBy: { creadoEn: "desc" },
-      take: 50,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     })
 
     const cotizaciones = data.map((c) => ({
@@ -124,7 +171,15 @@ export async function GET() {
       creadoEn: c.creadoEn,
     }))
 
-    return NextResponse.json({ cotizaciones })
+    return NextResponse.json({
+      cotizaciones,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json(
@@ -151,7 +206,7 @@ export async function POST(req: NextRequest) {
     }
 
     const input = parsed.data
-    const asesorId = await getAsesorId()
+    const asesorId = await obtenerUsuarioInternoDesdeSesion(session.user)
 
     let clienteId = input.selectedClienteId
     if (!clienteId) {

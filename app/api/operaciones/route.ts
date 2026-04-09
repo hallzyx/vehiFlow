@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { normalizarCuotas, resolverContextoOperacion } from "@/lib/pago-anticipado"
 import { obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
+import { toJsonSafe } from "@/lib/json-safe"
 
 export async function GET() {
   try {
@@ -64,7 +65,7 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ operaciones: data })
+    return NextResponse.json({ operaciones: toJsonSafe(data) })
   } catch (error) {
     console.error("Error listando operaciones:", error)
     return NextResponse.json({ error: "Error listando operaciones" }, { status: 500 })

@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { normalizarCuotas, resolverContextoOperacion } from "@/lib/pago-anticipado"
+import { toJsonSafe } from "@/lib/json-safe"
 
 interface Params {
   params: Promise<{ id: string }>
@@ -42,7 +43,7 @@ export async function GET(_: Request, { params }: Params) {
     const cuotas = normalizarCuotas(operacion.cotizacion.cuotas as any[])
     const contexto = resolverContextoOperacion(cuotas, Number(operacion.saldoActual))
 
-    return NextResponse.json({
+    return NextResponse.json(toJsonSafe({
       operacion: {
         id: operacion.id.toString(),
         estadoOp: operacion.estadoOp,
@@ -91,7 +92,7 @@ export async function GET(_: Request, { params }: Params) {
           creadoEn: p.creadoEn,
         })),
       },
-    })
+    }))
   } catch (error) {
     console.error("Error obteniendo operación:", error)
     return NextResponse.json({ error: "Error obteniendo operación" }, { status: 500 })

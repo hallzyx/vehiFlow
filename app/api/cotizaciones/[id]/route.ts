@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { toJsonSafe } from "@/lib/json-safe"
 
 interface Params {
   params: Promise<{ id: string }>
@@ -26,8 +27,9 @@ export async function GET(_: Request, { params }: Params) {
       return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 })
     }
 
-    return NextResponse.json({ cotizacion })
-  } catch {
+    return NextResponse.json({ cotizacion: toJsonSafe(cotizacion) })
+  } catch (error) {
+    console.error("Error GET /api/cotizaciones/[id]:", error)
     return NextResponse.json({ error: "Error consultando cotización" }, { status: 500 })
   }
 }

@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 
 type Modalidad = "REDUCIR_PLAZO" | "REDUCIR_CUOTA"
 type CanalPago = "VENTANILLA" | "TRANSFERENCIA" | "APP" | "DEBITO_AUTOMATICO" | "OTRO"
 
 export default function PagosAnticipadosPage() {
+  const searchParams = useSearchParams()
   const [operaciones, setOperaciones] = useState<any[]>([])
   const [selectedOperacionId, setSelectedOperacionId] = useState<string>("")
   const [operacion, setOperacion] = useState<any>(null)
@@ -30,6 +32,7 @@ export default function PagosAnticipadosPage() {
 
   useEffect(() => {
     cargarOperaciones()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -49,7 +52,12 @@ export default function PagosAnticipadosPage() {
       if (!res.ok) throw new Error(data.error || "No se pudo cargar operaciones")
       setOperaciones(data.operaciones || [])
       if ((data.operaciones || []).length > 0) {
-        setSelectedOperacionId((data.operaciones[0] as any).id)
+        const requestedOperacionId = searchParams.get("operacionId")
+        const exists = requestedOperacionId
+          ? (data.operaciones || []).some((op: any) => String(op.id) === String(requestedOperacionId))
+          : false
+
+        setSelectedOperacionId(exists ? String(requestedOperacionId) : String((data.operaciones[0] as any).id))
       }
     } catch (e: any) {
       setError(e.message || "Error cargando operaciones")

@@ -1,41 +1,43 @@
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
 import Link from "next/link"
 
 export const dynamic = 'force-dynamic'
 
-export default async function DashboardPage() {
-  const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
-  
-  if (!session) {
-    redirect("/sign-in")
-  }
-
+export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">Compra Inteligente</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{session.user?.email}</span>
-            <form action="/api/auth/sign-out" method="POST">
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
-              >
-                Cerrar sesión
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Compra Inteligente</h1>
+        <p className="text-sm text-slate-600">Panel principal de operaciones</p>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Transparencia */}
+          <Link
+            href="/dashboard/transparencia"
+            className="p-6 bg-white rounded-xl shadow-sm border hover:shadow-md transition group"
+          >
+            <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-cyan-200 transition">
+              <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Transparencia</h3>
+            <p className="text-slate-600 text-sm">Fórmulas y explicaciones públicas del producto</p>
+          </Link>
+
+          <Link
+            href="/dashboard/overview"
+            className="p-6 bg-white rounded-xl shadow-sm border hover:shadow-md transition group"
+          >
+            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition">
+              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v18h18M7 14l3-3 3 2 5-5" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Dashboard KPI</h3>
+            <p className="text-slate-600 text-sm">Métricas por rol con foco comercial y cumplimiento</p>
+          </Link>
+
           {/* Nueva Cotización */}
           <Link
             href="/dashboard/cotizaciones/nueva"
@@ -92,20 +94,6 @@ export default async function DashboardPage() {
             <p className="text-slate-600 text-sm">Catálogo de vehículos y simulación rápida</p>
           </Link>
 
-          {/* Transparencia */}
-          <Link
-            href="/transparencia"
-            className="p-6 bg-white rounded-xl shadow-sm border hover:shadow-md transition group"
-          >
-            <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-cyan-200 transition">
-              <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Transparencia</h3>
-            <p className="text-slate-600 text-sm">Fórmulas y ejemplos de cálculo</p>
-          </Link>
-
           {/* Pagos Anticipados */}
           <Link
             href="/dashboard/pagos"
@@ -120,7 +108,6 @@ export default async function DashboardPage() {
             <p className="text-slate-600 text-sm">Registrar pagos anticipados de clientes</p>
           </Link>
         </div>
-      </main>
     </div>
   )
 }

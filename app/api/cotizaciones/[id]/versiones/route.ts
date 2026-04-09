@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { toJsonSafe } from "@/lib/json-safe"
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +11,7 @@ export async function GET(
 
     // First get the current cotizacion
     const currentCotizacion = await prisma.cotizacion.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: BigInt(id) },
       select: { idCliente: true, idVehiculo: true }
     })
 
@@ -37,7 +38,7 @@ export async function GET(
       }
     })
 
-    return NextResponse.json({ versiones })
+    return NextResponse.json({ versiones: toJsonSafe(versiones) })
 
   } catch (error) {
     console.error("Error getting versiones:", error)

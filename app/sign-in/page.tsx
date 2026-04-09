@@ -13,6 +13,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [seedLoading, setSeedLoading] = useState(false)
+  const [seedMessage, setSeedMessage] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,6 +93,50 @@ export default function SignInPage() {
           </button>
         </form>
 
+        {seedMessage && (
+          <div className="mt-4 p-3 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs">
+            {seedMessage}
+          </div>
+        )}
+
+        <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+          <p className="text-sm font-semibold text-slate-800">Acceso rápido demo por rol</p>
+          <p className="text-xs text-slate-600 mt-1">
+            Para probar vistas por rol usá estas cuentas (password: <code>12345678</code>)
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              setSeedLoading(true)
+              setSeedMessage("")
+              try {
+                const [resSeed, resAuth] = await Promise.all([
+                  fetch("/api/dev/seed", { method: "POST" }),
+                  fetch("/api/dev/setup-demo-auth", { method: "POST" }),
+                ])
+                const dataSeed = await resSeed.json()
+                const dataAuth = await resAuth.json()
+                if (!resSeed.ok) throw new Error(dataSeed.error || "No se pudo ejecutar seed")
+                if (!resAuth.ok) throw new Error(dataAuth.error || "No se pudieron crear cuentas demo")
+                setSeedMessage("Seed sintético ejecutado. Ya podés probar el dashboard por rol.")
+              } catch (e: any) {
+                setSeedMessage(e.message || "Error ejecutando seed")
+              } finally {
+                setSeedLoading(false)
+              }
+            }}
+            className="mt-3 w-full px-3 py-2 rounded border text-xs bg-white hover:bg-slate-100"
+          >
+            {seedLoading ? "Preparando data sintética..." : "Preparar data sintética demo"}
+          </button>
+          <div className="mt-3 space-y-2 text-xs text-slate-700">
+            <QuickFill label="ADMIN" email="admin@demo.pe" onFill={(mail) => { setEmail(mail); setPassword("12345678") }} />
+            <QuickFill label="ASESOR" email="asesor@demo.pe" onFill={(mail) => { setEmail(mail); setPassword("12345678") }} />
+            <QuickFill label="ANALISTA" email="analista@demo.pe" onFill={(mail) => { setEmail(mail); setPassword("12345678") }} />
+            <QuickFill label="AUDITOR" email="auditor@demo.pe" onFill={(mail) => { setEmail(mail); setPassword("12345678") }} />
+          </div>
+        </div>
+
         <p className="mt-6 text-center text-sm text-slate-600">
           ¿No tienes cuenta?{" "}
           <Link href="/sign-up" className="text-blue-600 hover:underline font-medium">
@@ -99,5 +145,25 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+function QuickFill({
+  label,
+  email,
+  onFill,
+}: {
+  label: string
+  email: string
+  onFill: (email: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="w-full text-left px-3 py-2 border rounded hover:bg-white"
+      onClick={() => onFill(email)}
+    >
+      <span className="font-semibold">{label}</span> — {email}
+    </button>
   )
 }

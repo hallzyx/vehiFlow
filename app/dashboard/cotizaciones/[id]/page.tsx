@@ -213,7 +213,7 @@ export default function CotizacionDetailPage({
                 {versiones.map((v: any) => (
                   <tr key={v.id} className="border-t">
                     <td className="p-2 font-medium">v{v.version}</td>
-                    <td className="p-2">{new Date(v.createdAt).toLocaleDateString("es-PE")}</td>
+                    <td className="p-2">{new Date(v.creadoEn || v.createdAt).toLocaleDateString("es-PE")}</td>
                     <td className="p-2">{v.estado}</td>
                     <td className="p-2 text-right">{Number(v.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>
                     <td className="p-2 text-right">{v.plazoMeses} meses</td>
