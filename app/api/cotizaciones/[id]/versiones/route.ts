@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { toJsonSafe } from "@/lib/json-safe"
+import { agruparFamiliasVersiones, obtenerFamiliaPorCotizacionId } from "@/lib/versionado-cotizaciones"
 
 export async function GET(
   req: NextRequest,
@@ -19,8 +20,8 @@ export async function GET(
       return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 })
     }
 
-    // Get all versions of this cotizacion
-    const versiones = await prisma.cotizacion.findMany({
+    // Obtener candidatas de familia por cliente + vehículo
+    const candidatas = await prisma.cotizacion.findMany({
       where: {
         idCliente: currentCotizacion.idCliente,
         idVehiculo: currentCotizacion.idVehiculo
@@ -33,12 +34,29 @@ export async function GET(
           }
         }
       },
-      orderBy: {
-        version: 'desc'
-      }
+      orderBy: [{ creadoEn: "asc" }, { version: "asc" }]
     })
 
-    return NextResponse.json({ versiones: toJsonSafe(versiones) })
+    const familias = agruparFamiliasVersiones(candidatas)
+    const familiaActiva = obtenerFamiliaPorCotizacionId(candidatas, id)
+
+    if (!familiaActiva) {
+      return NextResponse.json({ error: "No se pudo resolver la familia de versiones" }, { status: 404 })
+    }
+
+    const versiones = [...familiaActiva.versiones].sort((a, b) => Number(b.version) - Number(a.version))
+
+    return NextResponse.json({
+      versiones: toJsonSafe(versiones),
+      familia: toJsonSafe({
+        id: familiaActiva.familyId,
+        totalVersiones: familiaActiva.versiones.length,
+        latestVersion: familiaActiva.latestVersion,
+        startedAt: familiaActiva.startedAt,
+        updatedAt: familiaActiva.updatedAt,
+        familiasDetectadas: familias.length,
+      }),
+    })
 
   } catch (error) {
     console.error("Error getting versiones:", error)

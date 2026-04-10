@@ -24,8 +24,12 @@ export default function CotizacionDetailPage({
   const [id, setId] = useState<string>("")
   const [cotizacion, setCotizacion] = useState<any>(null)
   const [versiones, setVersiones] = useState<any[]>([])
+  const [familia, setFamilia] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [comparisonModal, setComparisonModal] = useState<{open: boolean, version?: any}>({open: false})
+  const [publicLink, setPublicLink] = useState<string>("")
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [linkMessage, setLinkMessage] = useState("")
 
   useEffect(() => {
     params.then(({ id: paramId }) => {
@@ -55,6 +59,7 @@ export default function CotizacionDetailPage({
       if (res.ok) {
         const data = await res.json()
         setVersiones(data.versiones)
+        setFamilia(data.familia || null)
       }
     } catch (error) {
       console.error("Error fetching versiones:", error)
@@ -77,6 +82,9 @@ export default function CotizacionDetailPage({
     )
   }
 
+  const esVersionActiva = familia ? Number(cotizacion.version) === Number(familia.latestVersion) : true
+  const totalVersiones = familia?.totalVersiones ?? versiones.length
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b">
@@ -84,6 +92,10 @@ export default function CotizacionDetailPage({
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Cotización #{cotizacion.id}</h1>
             <p className="text-sm text-slate-600">Estado: {cotizacion.estado}</p>
+            <p className="text-sm text-slate-600">
+              Familia de versiones: {familia?.id ? `#${familia.id}` : "No identificada"} · Versión {cotizacion.version}
+              {esVersionActiva ? " (activa)" : " (histórica)"}
+            </p>
           </div>
            <div className="flex gap-4">
               {(cotizacion.estado === 'SIMULADA' || cotizacion.estado === 'PRESENTADA') && (
@@ -94,6 +106,30 @@ export default function CotizacionDetailPage({
                   Editar cotización
                 </Link>
               )}
+              <button
+                onClick={async () => {
+                  setGeneratingLink(true)
+                  setLinkMessage("")
+                  try {
+                    const res = await fetch(`/api/cotizaciones/${cotizacion.id}/public-link`)
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data.error || "No se pudo generar enlace")
+
+                    const absoluteUrl = `${window.location.origin}${data.publicUrl}`
+                    setPublicLink(absoluteUrl)
+                    await navigator.clipboard.writeText(absoluteUrl)
+                    setLinkMessage("Enlace público generado y copiado.")
+                  } catch (e: any) {
+                    setLinkMessage(e?.message || "Error generando enlace público")
+                  } finally {
+                    setGeneratingLink(false)
+                  }
+                }}
+                className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
+                disabled={generatingLink}
+              >
+                {generatingLink ? "Generando enlace..." : "Generar enlace cliente"}
+              </button>
               {!cotizacion.operacion && (
                 <button
                   onClick={async () => {
@@ -128,12 +164,65 @@ export default function CotizacionDetailPage({
               <Link href="/dashboard/cotizaciones" className="text-blue-600 hover:underline">
                 Volver al listado
               </Link>
-            </div>
-        </div>
+          </div>
+         </div>
       </header>
+
+      {(publicLink || linkMessage) && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-white border rounded-xl p-4 space-y-2">
+            {linkMessage && <p className="text-sm text-slate-700">{linkMessage}</p>}
+            {publicLink && (
+              <div className="flex flex-col md:flex-row md:items-center gap-2">
+                <input
+                  readOnly
+                  value={publicLink}
+                  className="flex-1 border rounded p-2 text-sm"
+                />
+                <a
+                  href={publicLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 border rounded text-sm hover:bg-slate-50"
+                >
+                  Abrir portal cliente
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <section className="bg-white rounded-xl border p-6">
+          <h2 className="text-lg font-semibold mb-4">Control de versionado</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm mb-6">
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <p className="text-slate-500">Familia</p>
+              <p className="font-semibold">{familia?.id ? `#${familia.id}` : "—"}</p>
+            </div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <p className="text-slate-500">Total de versiones</p>
+              <p className="font-semibold">{totalVersiones}</p>
+            </div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <p className="text-slate-500">Versión activa</p>
+              <p className="font-semibold">v{familia?.latestVersion ?? cotizacion.version}</p>
+            </div>
+            <div className="rounded-lg border p-3 bg-slate-50">
+              <p className="text-slate-500">Versión abierta</p>
+              <p className="font-semibold">
+                v{cotizacion.version} {esVersionActiva ? "(actual)" : "(histórica)"}
+              </p>
+            </div>
+          </div>
+
+          {!esVersionActiva && (
+            <div className="mb-6 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm">
+              Estás viendo una versión histórica. La versión vigente de esta familia es la v{familia?.latestVersion}.
+            </div>
+          )}
+
           <h2 className="text-lg font-semibold mb-4">Resumen de operación</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
@@ -195,6 +284,9 @@ export default function CotizacionDetailPage({
 
         <section className="bg-white rounded-xl border p-6">
           <h2 className="text-lg font-semibold mb-4">Historial de versiones</h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Cada edición crea una nueva versión y la anterior queda archivada para auditoría. Así mantenemos trazabilidad completa.
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-100 text-slate-700">
@@ -214,7 +306,12 @@ export default function CotizacionDetailPage({
                   <tr key={v.id} className="border-t">
                     <td className="p-2 font-medium">v{v.version}</td>
                     <td className="p-2">{new Date(v.creadoEn || v.createdAt).toLocaleDateString("es-PE")}</td>
-                    <td className="p-2">{v.estado}</td>
+                    <td className="p-2">
+                      {v.estado}
+                      {familia && Number(v.version) === Number(familia.latestVersion) && (
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Activa</span>
+                      )}
+                    </td>
                     <td className="p-2 text-right">{Number(v.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>
                     <td className="p-2 text-right">{v.plazoMeses} meses</td>
                     <td className="p-2 text-right">{Number(v.tcea).toFixed(4)}%</td>

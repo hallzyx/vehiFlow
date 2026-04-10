@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
+import { obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 
 export async function POST(
   req: NextRequest,
@@ -16,12 +17,14 @@ export async function POST(
     }
 
     const { id } = await params
+    const cotizacionId = BigInt(id)
     const body = await req.json()
     const { formData, motivo } = body
+    const usuarioInternoId = await obtenerUsuarioInternoDesdeSesion(session.user)
 
     // Get current cotizacion
     const cotizacionActual = await prisma.cotizacion.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: cotizacionId },
       include: {
         cliente: true,
         vehiculo: true,
@@ -42,11 +45,10 @@ export async function POST(
     const result = await prisma.$transaction(async (tx) => {
       // 1. Archive current version
       await tx.cotizacion.update({
-        where: { id: parseInt(id) },
+        where: { id: cotizacionId },
         data: {
           estado: 'ARCHIVADA_VERSION',
           motivoEdicion: motivo || 'Edición sin motivo especificado',
-          creadoEn: new Date(),
         },
       })
 
@@ -166,7 +168,7 @@ export async function POST(
             tasaIngresada: nuevaCotizacion.tasaIngresada,
             plazoMeses: nuevaCotizacion.plazoMeses,
           },
-          idUsuario: parseInt(session.user.id),
+          idUsuario: usuarioInternoId,
         },
       })
 
