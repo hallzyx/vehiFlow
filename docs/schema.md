@@ -71,17 +71,8 @@ determinan todos los cálculos del motor financiero.
 | Variable               | Descripción                                   | Tipo    | Tamaño | Formato          | Valor por defecto | Restricciones                                           |
 |------------------------|-----------------------------------------------|---------|--------|------------------|-------------------|---------------------------------------------------------|
 | moneda_operacion       | Moneda del crédito                            | Enum    | —      | PEN / USD        | PEN               | Obligatorio                                             |
-| tipo_tasa              | Tipo de tasa ingresada por el usuario         | Enum    | —      | EFECTIVA /       | EFECTIVA          | Obligatorio                                             |
-|                        |                                               |         |        | NOMINAL          |                   |                                                         |
-| tasa_ingresada         | Valor de la tasa anual ingresada              | Decimal | 8,4    | 999.9999 (%)     | —                 | Obligatorio; mayor a 0; menor a tope BCRP              |
-| capitalizacion         | Frecuencia de capitalización (solo si nominal)| Enum    | —      | DIARIA /         | MENSUAL           | Condicional: obligatorio si tipo_tasa = NOMINAL        |
-|                        |                                               |         |        | SEMANAL /        |                   |                                                         |
-|                        |                                               |         |        | QUINCENAL /      |                   |                                                         |
-|                        |                                               |         |        | MENSUAL /        |                   |                                                         |
-|                        |                                               |         |        | BIMESTRAL /      |                   |                                                         |
-|                        |                                               |         |        | TRIMESTRAL /     |                   |                                                         |
-|                        |                                               |         |        | SEMESTRAL /      |                   |                                                         |
-|                        |                                               |         |        | ANUAL            |                   |                                                         |
+| tipo_tasa              | Siempre TEA (Tasa Efectiva Anual)            | —       | —      | (no aplica)      | —                 | Siempre TEA — no existe selector de tipo de tasa       |
+| tasa_ingresada         | Valor de la TEA anual ingresada               | Decimal | 8,4    | 999.9999 (%)     | —                 | Obligatorio; mayor a 0; menor a tope BCRP              |
 | precio_vehiculo        | Precio del vehículo (editable en cotización)  | Decimal | 12,2   | 999,999,999.99   | precio_lista      | Obligatorio; mayor a 0                                 |
 | cuota_inicial_pct      | Porcentaje de cuota inicial sobre el precio   | Decimal | 5,2    | 999.99 (%)       | 20.00             | Obligatorio; entre 0 y 99.99                           |
 | cuota_inicial_monto    | Monto de la cuota inicial en moneda operación | Decimal | 12,2   | 999,999,999.99   | calculado         | Obligatorio; sincronizado con cuota_inicial_pct        |
@@ -130,7 +121,7 @@ son necesarios para obtener los datos de salida.
 |------------------------|---------------------------------------------------------|---------|--------|------------------|
 | tea                    | Tasa Efectiva Anual normalizada (base de todos cálculos)| Decimal | 8,6    | 0.999999         |
 | tem                    | Tasa Efectiva Mensual = (1+TEA)^(30/360) - 1           | Decimal | 10,8   | 0.99999999       |
-| m_capitalizacion       | Número de capitalizaciones por año (si tasa nominal)    | Integer | 3 dígit| 999              |
+| m_capitalizacion       | (no usado — tasa siempre TEA directa)                  | —       | —      | —                |
 | monto_financiado       | Capital prestado = precio - cuota_inicial_monto        | Decimal | 12,2   | 999,999,999.99   |
 | cuota_base             | Cuota fija sin seguros ni gastos periódicos             | Decimal | 12,2   | 999,999,999.99   |
 | cuota_gracia_parcial   | Cuota solo interés durante gracia parcial               | Decimal | 12,2   | 999,999,999.99   |
@@ -275,10 +266,9 @@ que el motor financiero usa en cada cálculo.
 │ version │ │
 │ estado │ │
 │ moneda │ │
-│ tipo_tasa │ │
-│ tasa_ingr │ │
-│ capitaliz │ │
-│ tea │ │
+
+ │ tasa_ingr │ │
+ │ tea │ │
 │ tem │ │
 │ precio_veh │ │
 │ cuota_ini │ │
@@ -428,9 +418,7 @@ Una cotización puede tener múltiples versiones (v1, v2, ...).
 | estado         | VARCHAR(15)     | —     | NO   | BORRADOR/SIMULADA/PRESENTADA/       |
 |                |                 |       |      | ARCHIVADA/ARCHIVADA_VERSION         |
 | moneda_op      | VARCHAR(3)      | —     | NO   | PEN o USD                           |
-| tipo_tasa      | VARCHAR(10)     | —     | NO   | EFECTIVA o NOMINAL                  |
-| tasa_ingresada | DECIMAL(8,4)    | —     | NO   | Tasa ingresada por el usuario (%)   |
-| capitalizacion | VARCHAR(15)     | —     | SÍ   | Frecuencia de capitalización        |
+| tasa_ingresada | DECIMAL(8,4)    | —     | NO   | TEA ingresada por el usuario (%)    |
 | tea            | DECIMAL(8,6)    | —     | NO   | TEA normalizada (decimal, no %)     |
 | tem            | DECIMAL(10,8)   | —     | NO   | TEM calculada (decimal, no %)       |
 | precio_veh     | DECIMAL(12,2)   | —     | NO   | Precio del vehículo en la cotización|
@@ -882,7 +870,7 @@ text
 ╔══════════════════════════════════════════════════════════════════╗
 ║ DATOS DE ENTRADA (usuario) ║
 ╠══════════════════════════════════════════════════════════════════╣
-║ tipo_tasa + tasa_ingresada + capitalización ║
+║ tasa_ingresada (TEA) — directa, sin capitalización ║
 ║ precio_vehiculo + cuota_inicial ║
 ║ plazo_meses + fecha_desembolso + fecha_primera_cuota ║
 ║ gracia_flag + gracia_tipo + gracia_meses ║
@@ -895,13 +883,12 @@ text
 ╔══════════════════════════════════════════════════════════════════╗
 ║ PASO 1 — NORMALIZACIÓN DE TASA ║
 ╠══════════════════════════════════════════════════════════════════╣
-║ Si NOMINAL: TNA + capitalización → TEA ║
-║ TEA = (1 + TNA/m)^m - 1 ║
-║ Si EFECTIVA: tasa_ingresada → TEA directamente ║
+║ TEA ingresada directamente → tea_decimal = TEA / 100 ║
+║ (no se requiere conversión TNA→TEA ni capitalización) ║
 ║ ║
-║ TEA → TEM = (1 + TEA)^(30/360) - 1 ║
+║ tea_decimal → TEM = (1 + tea_decimal)^(30/360) - 1 ║
 ║ ║
-║ Intermedios: tea, tem, m_capitalizacion ║
+║ Intermedios: tea, tem ║
 ╚══════════════════════╦═══════════════════════════════════════════╝
 ║
 ▼
@@ -1396,12 +1383,7 @@ CREATE TABLE cotizaciones (
                     'ARCHIVADA','ARCHIVADA_VERSION'
                   )),
   moneda_op       VARCHAR(3)      NOT NULL CHECK (moneda_op IN ('PEN','USD')),
-  tipo_tasa       VARCHAR(10)     NOT NULL CHECK (tipo_tasa IN ('EFECTIVA','NOMINAL')),
   tasa_ingresada  DECIMAL(8,4)    NOT NULL CHECK (tasa_ingresada > 0),
-  capitalizacion  VARCHAR(15)     CHECK (capitalizacion IN (
-                    'DIARIA','SEMANAL','QUINCENAL','MENSUAL',
-                    'BIMESTRAL','TRIMESTRAL','SEMESTRAL','ANUAL'
-                  )),
   tea             DECIMAL(8,6)    NOT NULL CHECK (tea > 0),
   tem             DECIMAL(10,8)   NOT NULL CHECK (tem > 0),
   precio_veh      DECIMAL(12,2)   NOT NULL CHECK (precio_veh > 0),

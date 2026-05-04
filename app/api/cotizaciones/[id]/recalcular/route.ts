@@ -34,9 +34,7 @@ export async function POST(
 
     // Merge current data with updated parameters
     const updatedParams: ParametrosCredito = {
-      tipoTasa: body.parametros.tipoTasa || cotizacion.tipoTasa,
       tasaIngresada: Number(body.parametros.tasaIngresada || cotizacion.tasaIngresada),
-      capitalizacion: body.parametros.capitalizacion || cotizacion.capitalizacion,
       precioVehiculo: Number(cotizacion.precioVeh),
       cuotaInicial: Number(cotizacion.cuotaIniMnt),
       plazoMeses: body.parametros.plazoMeses || cotizacion.plazoMeses,

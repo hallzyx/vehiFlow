@@ -1,7 +1,7 @@
 /**
  * Motor Financiero - Compra Inteligente Perú
  * Sistema Francés Vencido Ordinario con soporte para:
- * - Tasa efectiva y nominal
+ * - Tasa Efectiva Anual (TEA)
  * - Períodos de gracia (total y parcial)
  * - Valor residual (Compra Inteligente)
  * - Cálculo de TCEA, VAN, TIR
@@ -17,9 +17,7 @@ const TOL = 0.0000001;
 // ============================================
 
 export interface ParametrosCredito {
-  tipoTasa: 'EFECTIVA' | 'NOMINAL';
-  tasaIngresada: number; // Porcentaje (ej: 18.00)
-  capitalizacion?: number; // Solo si nominal
+  tasaIngresada: number; // TEA en porcentaje (ej: 18.00)
   precioVehiculo: number;
   cuotaInicial: number;
   plazoMeses: number;
@@ -68,28 +66,16 @@ export interface Cuota {
 }
 
 // ============================================
-// ALGORITMO 1: Normalizar Tasa de Interés
+// ALGORITMO 1: Normalizar Tasa Efectiva Anual
 // ============================================
 
 export function normalizarTasa(
-  tipoTasa: 'EFECTIVA' | 'NOMINAL',
-  tasaIngresada: number,
-  capitalizacion?: number
+  teaPorcentaje: number
 ): number {
-  const tasaDecimal = tasaIngresada / 100;
-
-  if (tipoTasa === 'EFECTIVA') {
-    return tasaDecimal;
+  if (teaPorcentaje <= 0) {
+    throw new Error('La TEA debe ser mayor a cero');
   }
-
-  if (tipoTasa === 'NOMINAL') {
-    if (!capitalizacion || capitalizacion <= 0) {
-      throw new Error('Capitalización debe ser mayor a cero para tasa nominal');
-    }
-    return Math.pow(1 + tasaDecimal / capitalizacion, capitalizacion) - 1;
-  }
-
-  throw new Error('Tipo de tasa inválido');
+  return teaPorcentaje / 100;
 }
 
 // ============================================
@@ -464,12 +450,8 @@ export function calcularTotales(cronograma: Cuota[], montoFinanciado: number) {
 // ============================================
 
 export function calcularCredito(params: ParametrosCredito): ResultadoFinanciero {
-  // Paso 1: Normalizar tasa
-  const tea = normalizarTasa(
-    params.tipoTasa,
-    params.tasaIngresada,
-    params.capitalizacion
-  );
+  // Paso 1: Normalizar TEA
+  const tea = normalizarTasa(params.tasaIngresada);
   const tem = calcularTEM(tea);
 
   // Paso 2: Calcular capital financiado

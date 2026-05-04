@@ -98,32 +98,33 @@ text
 
 #### Ayudas en la sección de tasa e interés
 
-**Campo: Tipo de tasa**
-Tasa Efectiva (TEA):
-Refleja el costo real del dinero incorporando el efecto de la
-capitalización. Es la que exige mostrar la SBS. Si ingresas una
-tasa efectiva, el sistema la usa directamente para calcular la TEM.
+**Campo: Tasa Efectiva Anual (TEA)**
+Es la tasa que refleja el costo real del crédito en términos anuales,
+considerando un año de 360 días según lo dispuesto por la SBS.
+Se ingresa directamente en porcentaje y el sistema la normaliza
+dividiendo entre 100 para obtener el valor decimal.
 
-Tasa Nominal (TNA):
-Es una tasa de referencia que no incorpora capitalización. Para
-usarla, debes indicar con qué frecuencia se capitaliza. El sistema
-la convierte automáticamente a TEA antes de calcular.
+No requiere capitalización ni conversión desde TNA, porque la tasa
+ingresada ya es efectiva anual.
+
+Fórmula de normalización:
+tea_decimal = TEA / 100
+
+Ejemplo: TEA = 18%:
+tea_decimal = 18 / 100 = 0.18
+
+La TEM se calcula a partir de la TEA:
+TEM = (1 + TEA)^(30/360) - 1
 
 text
 
 **Campo: Capitalización**
-Es la frecuencia con la que los intereses se acumulan al capital
-cuando la tasa es nominal.
+Este campo ya no existe en el sistema. La tasa ingresada es
+directamente Tasa Efectiva Anual (TEA), por lo que no se requiere
+especificar frecuencia de capitalización ni conversión TNA→TEA.
 
-Fórmula de conversión TNA → TEA:
-TEA = (1 + TNA/m)^m - 1
-Donde m = número de capitalizaciones por año.
-
-Ejemplo: TNA = 18% capitalizable mensualmente (m = 12):
-TEA = (1 + 0.18/12)^12 - 1
-TEA = (1.015)^12 - 1
-TEA = 1.19562 - 1
-TEA = 19.562%
+El sistema toma la TEA ingresada, la divide entre 100 y calcula
+la TEM directamente.
 
 text
 

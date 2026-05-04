@@ -8,16 +8,6 @@ import { ayudaCamposCotizacion } from "@/lib/transparencia-help"
 
 type TipoDoc = "DNI" | "CE" | "PASAPORTE"
 type Moneda = "PEN" | "USD"
-type TipoTasa = "EFECTIVA" | "NOMINAL"
-type Capitalizacion =
-  | "DIARIA"
-  | "SEMANAL"
-  | "QUINCENAL"
-  | "MENSUAL"
-  | "BIMESTRAL"
-  | "TRIMESTRAL"
-  | "SEMESTRAL"
-  | "ANUAL"
 
 const pasos = ["Cliente", "Vehículo", "Parámetros", "Confirmación"]
 
@@ -59,9 +49,7 @@ export default function NuevaCotizacionPage() {
 
   const [parametros, setParametros] = useState({
     monedaOp: "PEN" as Moneda,
-    tipoTasa: "EFECTIVA" as TipoTasa,
     tasaIngresada: 18,
-    capitalizacion: "MENSUAL" as Capitalizacion,
     precioVehiculo: 0,
     cuotaIniPct: 20,
     cuotaIniMnt: 0,
@@ -317,22 +305,7 @@ export default function NuevaCotizacionPage() {
 
                 <label className="space-y-1">
                   <span className="text-sm flex items-center">
-                    Tipo tasa
-                    <HelpTooltip {...ayudaCamposCotizacion.tipoTasa} />
-                  </span>
-                  <select
-                    className="w-full border rounded p-2"
-                    value={parametros.tipoTasa}
-                    onChange={(e) => setParametros((p) => ({ ...p, tipoTasa: e.target.value as TipoTasa }))}
-                  >
-                    <option value="EFECTIVA">EFECTIVA</option>
-                    <option value="NOMINAL">NOMINAL</option>
-                  </select>
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-sm flex items-center">
-                    Tasa ingresada (%)
+                    Tasa Efectiva Anual (TEA %)
                     <HelpTooltip {...ayudaCamposCotizacion.tasaIngresada} />
                   </span>
                   <input
@@ -343,29 +316,6 @@ export default function NuevaCotizacionPage() {
                     onChange={(e) => setParametros((p) => ({ ...p, tasaIngresada: Number(e.target.value) }))}
                   />
                 </label>
-
-                {parametros.tipoTasa === "NOMINAL" && (
-                  <label className="space-y-1">
-                    <span className="text-sm flex items-center">
-                      Capitalización
-                      <HelpTooltip {...ayudaCamposCotizacion.capitalizacion} />
-                    </span>
-                    <select
-                      className="w-full border rounded p-2"
-                      value={parametros.capitalizacion}
-                      onChange={(e) => setParametros((p) => ({ ...p, capitalizacion: e.target.value as Capitalizacion }))}
-                    >
-                      <option value="DIARIA">DIARIA</option>
-                      <option value="SEMANAL">SEMANAL</option>
-                      <option value="QUINCENAL">QUINCENAL</option>
-                      <option value="MENSUAL">MENSUAL</option>
-                      <option value="BIMESTRAL">BIMESTRAL</option>
-                      <option value="TRIMESTRAL">TRIMESTRAL</option>
-                      <option value="SEMESTRAL">SEMESTRAL</option>
-                      <option value="ANUAL">ANUAL</option>
-                    </select>
-                  </label>
-                )}
 
                 <label className="space-y-1">
                   <span className="text-sm">Precio vehículo</span>
@@ -593,8 +543,7 @@ export default function NuevaCotizacionPage() {
                 </div>
                 <div className="p-4 border rounded-lg md:col-span-2">
                   <h3 className="font-semibold mb-2">Parámetros financieros</h3>
-                  <p>Tipo tasa: {parametros.tipoTasa}</p>
-                  <p>Tasa: {parametros.tasaIngresada}%</p>
+                  <p>TEA ingresada: {parametros.tasaIngresada}%</p>
                   <p>Plazo: {parametros.plazoMeses} meses</p>
                   <p>Monto financiado: {parametros.monedaOp} {montoFinanciadoPreview.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
                   <p>Residual: {parametros.residualFlag ? "Sí" : "No"}</p>

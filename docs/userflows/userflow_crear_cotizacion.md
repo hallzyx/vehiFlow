@@ -176,23 +176,18 @@ se configura aquí.**
 | Campo                  | Tipo     | Opciones / Validación                    |
 |------------------------|----------|------------------------------------------|
 | Moneda de la operación | Select   | PEN (Soles) / USD (Dólares)              |
-| Tipo de tasa           | Radio    | Efectiva / Nominal                       |
-| Valor de la tasa       | Number   | % anual; mayor a 0; hasta 4 decimales    |
-| Capitalización         | Select   | Aparece SOLO si tipo = Nominal           |
-|                        |          | Diaria / Semanal / Quincenal / Mensual / |
-|                        |          | Bimestral / Trimestral / Semestral /     |
-|                        |          | Anual                                    |
+| TEA (Tasa Efectiva Anual) | Number   | % anual; mayor a 0; hasta 4 decimales    |
 
-**Lógica de conversión de tasas (visible en tooltip de ayuda):**
+**Lógica de conversión de tasa (visible en tooltip de ayuda):**
 
-Si tasa es EFECTIVA ANUAL:
-  TEM = (1 + TEA)^(30/360) - 1
+El sistema recibe directamente la Tasa Efectiva Anual (TEA).
+No requiere capitalización ni conversión TNA→TEA:
 
-Si tasa es NOMINAL con capitalización m veces al año:
-  TEM = (1 + TNA/m)^(m/12) - 1
+  tea_decimal = TEA / 100
+  TEM = (1 + tea_decimal)^(30/360) - 1
 
-En ambos casos, internamente el sistema normaliza a TEM (Tasa Efectiva
-Mensual) para construir el cronograma, y expone TEA al usuario.
+Internamente el sistema normaliza a TEM (Tasa Efectiva Mensual) para
+construir el cronograma, y expone TEA al usuario.
 
 Obligatorio por normativa SBS: mostrar siempre la TCEA en forma efectiva
 anual considerando año de 360 días, independientemente de la tasa
@@ -340,7 +335,7 @@ Vehículo: Toyota Corolla 2025 Moneda: PEN
 Monto financiado: S/. 45,000.00 Plazo: 36 meses
 TEA: 18.00% TCEA: 21.45%
 Fecha desembolso: 15/04/2026 1ra cuota: 15/05/2026
-Tipo de tasa: Efectiva anual Sistema: Francés vencido ordinario
+Tasa: TEA 18% directa (TEM ~1.39%) Sistema: Francés vencido ordinario
 Período de gracia: 2 meses — Parcial Meses de 30 días (año 360)
 Valor residual: S/. 9,000.00 (cuota 36)
 
@@ -556,7 +551,7 @@ Esto permite defender la trazabilidad operativa en la exposición.
 │
 ▼ Siguiente
 [PASO 3: PARÁMETROS FINANCIEROS]
-├── Moneda + Tasa (efectiva/nominal + capitalización)
+├── Moneda + TEA
 ├── Monto financiado + Plazo + Fechas
 ├── Período de gracia (total/parcial/ninguno)
 ├── Valor residual (Compra Inteligente)

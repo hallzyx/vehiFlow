@@ -30,6 +30,7 @@ export default function CotizacionDetailPage({
   const [publicLink, setPublicLink] = useState<string>("")
   const [generatingLink, setGeneratingLink] = useState(false)
   const [linkMessage, setLinkMessage] = useState("")
+  const [viewMode, setViewMode] = useState<"comercial" | "academica">("comercial")
 
   useEffect(() => {
     params.then(({ id: paramId }) => {
@@ -97,7 +98,29 @@ export default function CotizacionDetailPage({
               {esVersionActiva ? " (activa)" : " (histórica)"}
             </p>
           </div>
-           <div className="flex gap-4">
+           <div className="flex gap-4 items-center">
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode("comercial")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    viewMode === "comercial"
+                      ? "bg-white shadow text-slate-900"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Vista Comercial
+                </button>
+                <button
+                  onClick={() => setViewMode("academica")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    viewMode === "academica"
+                      ? "bg-white shadow text-slate-900"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Vista Académica
+                </button>
+              </div>
               {(cotizacion.estado === 'SIMULADA' || cotizacion.estado === 'PRESENTADA') && (
                 <Link
                   href={`/dashboard/cotizaciones/${cotizacion.id}/editar`}
@@ -194,6 +217,8 @@ export default function CotizacionDetailPage({
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {viewMode === "comercial" && (
+        <>
         <section className="bg-white rounded-xl border p-6">
           <h2 className="text-lg font-semibold mb-4">Control de versionado</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm mb-6">
@@ -340,6 +365,87 @@ export default function CotizacionDetailPage({
             </table>
           </div>
         </section>
+        </>
+        )}
+
+        {viewMode === "academica" && cotizacion && (
+          <>
+            {/* BLOQUE DATOS */}
+            <section className="bg-white rounded-xl border p-6">
+              <h2 className="text-lg font-semibold mb-4">DATOS</h2>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">Precio de venta</p>
+                  <p className="font-semibold">{Number(cotizacion.precioVeh).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">% Cuota inicial</p>
+                  <p className="font-semibold">{Number(cotizacion.cuotaIniPct).toFixed(2)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">Préstamo</p>
+                  <p className="font-semibold">{Number(cotizacion.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">Frecuencia</p>
+                  <p className="font-semibold">Semestral</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">N° de años</p>
+                  <p className="font-semibold">{(cotizacion.plazoMeses / 12).toFixed(1)}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">N° de periodos</p>
+                  <p className="font-semibold">{Math.ceil(cotizacion.plazoMeses / 6)}</p>
+                </div>
+              </div>
+            </section>
+
+            {/* CRONOGRAMA ACADÉMICO */}
+            <section className="bg-white rounded-xl border p-6">
+              <h2 className="text-lg font-semibold mb-4">Cronograma de pagos</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="text-left p-2">N°</th>
+                      <th className="text-right p-2">TEA</th>
+                      <th className="text-right p-2">TES</th>
+                      <th className="text-right p-2">Saldo Inicial</th>
+                      <th className="text-right p-2">Interés</th>
+                      <th className="text-right p-2">Cuota</th>
+                      <th className="text-right p-2">Amort.</th>
+                      <th className="text-right p-2">Saldo Final</th>
+                      <th className="text-center p-2">Plazo Gracia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cotizacion.cuotas.map((q: any, idx: number) => {
+                      const tea = Number(cotizacion.tea) * 100
+                      const tes = (Math.pow(1 + Number(cotizacion.tea), 6 / 12) - 1) * 100
+                      const cuotaFinanciera = Number(q.interes) + Number(q.amortizacion)
+                      const esGracia =
+                        q.tipoCuota === "GRACIA_TOTAL" || q.tipoCuota === "GRACIA_PARCIAL"
+                      return (
+                        <tr key={q.id} className="border-t">
+                          <td className="p-2">{q.numero}</td>
+                          <td className="p-2 text-right">{tea.toFixed(4)}%</td>
+                          <td className="p-2 text-right">{tes.toFixed(4)}%</td>
+                          <td className="p-2 text-right">{Number(q.saldoInicial).toFixed(2)}</td>
+                          <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
+                          <td className="p-2 text-right font-medium">{cuotaFinanciera.toFixed(2)}</td>
+                          <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
+                          <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
+                          <td className="p-2 text-center">{esGracia ? "S" : "N"}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       {/* Comparison Modal */}

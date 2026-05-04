@@ -7,17 +7,6 @@ import { calcularCredito } from "@/lib/motor-financiero"
 import { inferirRolDesdeEmail, obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 import { z } from "zod"
 
-const capitalizacionMap: Record<string, number> = {
-  DIARIA: 360,
-  SEMANAL: 52,
-  QUINCENAL: 24,
-  MENSUAL: 12,
-  BIMESTRAL: 6,
-  TRIMESTRAL: 4,
-  SEMESTRAL: 2,
-  ANUAL: 1,
-}
-
 const schemaCrearCotizacion = z.object({
   selectedClienteId: z.number().optional(),
   selectedVehiculoId: z.number().optional(),
@@ -52,20 +41,7 @@ const schemaCrearCotizacion = z.object({
     .optional(),
   parametros: z.object({
     monedaOp: z.enum(["PEN", "USD"]),
-    tipoTasa: z.enum(["EFECTIVA", "NOMINAL"]),
     tasaIngresada: z.number().positive(),
-    capitalizacion: z
-      .enum([
-        "DIARIA",
-        "SEMANAL",
-        "QUINCENAL",
-        "MENSUAL",
-        "BIMESTRAL",
-        "TRIMESTRAL",
-        "SEMESTRAL",
-        "ANUAL",
-      ])
-      .optional(),
     precioVehiculo: z.number().positive(),
     cuotaIniPct: z.number().min(0).max(99.99),
     cuotaIniMnt: z.number().min(0),
@@ -99,7 +75,6 @@ export async function GET(req: NextRequest) {
     const search = (searchParams.get("search") || "").trim()
     const estado = (searchParams.get("estado") || "TODOS").trim()
     const moneda = (searchParams.get("moneda") || "TODOS").trim()
-    const tipoTasa = (searchParams.get("tipoTasa") || "TODOS").trim()
     const fechaDesde = searchParams.get("fechaDesde")
     const fechaHasta = searchParams.get("fechaHasta")
     const page = Math.max(1, Number(searchParams.get("page") || 1))
@@ -118,10 +93,6 @@ export async function GET(req: NextRequest) {
 
     if (moneda !== "TODOS") {
       where.monedaOp = moneda as any
-    }
-
-    if (tipoTasa !== "TODOS") {
-      where.tipoTasa = tipoTasa as any
     }
 
     if (fechaDesde || fechaHasta) {
@@ -261,12 +232,7 @@ export async function POST(req: NextRequest) {
 
     const p = input.parametros
     const resultado = calcularCredito({
-      tipoTasa: p.tipoTasa,
       tasaIngresada: p.tasaIngresada,
-      capitalizacion:
-        p.tipoTasa === "NOMINAL" && p.capitalizacion
-          ? capitalizacionMap[p.capitalizacion]
-          : undefined,
       precioVehiculo: p.precioVehiculo,
       cuotaInicial: p.cuotaIniMnt,
       plazoMeses: p.plazoMeses,
@@ -291,9 +257,7 @@ export async function POST(req: NextRequest) {
         version: 1,
         estado: "SIMULADA",
         monedaOp: p.monedaOp,
-        tipoTasa: p.tipoTasa,
         tasaIngresada: p.tasaIngresada,
-        capitalizacion: p.capitalizacion,
         tea: resultado.tea,
         tem: resultado.tem,
         precioVeh: p.precioVehiculo,

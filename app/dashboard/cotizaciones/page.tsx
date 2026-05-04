@@ -14,7 +14,6 @@ export default function CotizacionesPage() {
   const [search, setSearch] = useState("")
   const [estado, setEstado] = useState("TODOS")
   const [moneda, setMoneda] = useState("TODOS")
-  const [tipoTasa, setTipoTasa] = useState("TODOS")
   const [fechaDesde, setFechaDesde] = useState("")
   const [fechaHasta, setFechaHasta] = useState("")
 
@@ -38,7 +37,6 @@ export default function CotizacionesPage() {
       if (search.trim()) qs.set("search", search.trim())
       if (estado !== "TODOS") qs.set("estado", estado)
       if (moneda !== "TODOS") qs.set("moneda", moneda)
-      if (tipoTasa !== "TODOS") qs.set("tipoTasa", tipoTasa)
       if (fechaDesde) qs.set("fechaDesde", fechaDesde)
       if (fechaHasta) qs.set("fechaHasta", fechaHasta)
       qs.set("page", String(currentPage))
@@ -79,7 +77,6 @@ export default function CotizacionesPage() {
               ...(search.trim() ? { search: search.trim() } : {}),
               ...(estado !== "TODOS" ? { estado } : {}),
               ...(moneda !== "TODOS" ? { moneda } : {}),
-              ...(tipoTasa !== "TODOS" ? { tipoTasa } : {}),
               ...(fechaDesde ? { fechaDesde } : {}),
               ...(fechaHasta ? { fechaHasta } : {}),
             }).toString()}`}
@@ -119,11 +116,6 @@ export default function CotizacionesPage() {
           <option value="PEN">PEN</option>
           <option value="USD">USD</option>
         </select>
-        <select className="border rounded p-2" value={tipoTasa} onChange={(e) => setTipoTasa(e.target.value)}>
-          <option value="TODOS">Tipo tasa: Todos</option>
-          <option value="EFECTIVA">EFECTIVA</option>
-          <option value="NOMINAL">NOMINAL</option>
-        </select>
         <input type="date" className="border rounded p-2" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
         <input type="date" className="border rounded p-2" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
 
@@ -136,7 +128,6 @@ export default function CotizacionesPage() {
               setSearch("")
               setEstado("TODOS")
               setMoneda("TODOS")
-              setTipoTasa("TODOS")
               setFechaDesde("")
               setFechaHasta("")
               setPagination((p) => ({ ...p, page: 1 }))

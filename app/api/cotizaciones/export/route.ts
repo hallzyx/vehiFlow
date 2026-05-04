@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
     const search = (searchParams.get("search") || "").trim()
     const estado = (searchParams.get("estado") || "TODOS").trim()
     const moneda = (searchParams.get("moneda") || "TODOS").trim()
-    const tipoTasa = (searchParams.get("tipoTasa") || "TODOS").trim()
     const fechaDesde = searchParams.get("fechaDesde")
     const fechaHasta = searchParams.get("fechaHasta")
 
@@ -47,7 +46,6 @@ export async function GET(req: NextRequest) {
 
     if (estado !== "TODOS") where.estado = estado as any
     if (moneda !== "TODOS") where.monedaOp = moneda as any
-    if (tipoTasa !== "TODOS") where.tipoTasa = tipoTasa as any
 
     if (fechaDesde || fechaHasta) {
       where.creadoEn = {}

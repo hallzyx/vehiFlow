@@ -48,22 +48,6 @@ enum Moneda {
   USD
 }
 
-enum TipoTasa {
-  EFECTIVA
-  NOMINAL
-}
-
-enum Capitalizacion {
-  DIARIA
-  SEMANAL
-  QUINCENAL
-  MENSUAL
-  BIMESTRAL
-  TRIMESTRAL
-  SEMESTRAL
-  ANUAL
-}
-
 enum GraciaTipo {
   TOTAL
   PARCIAL
@@ -237,11 +221,9 @@ model Cotizacion {
   version          Int             @default(1) @db.SmallInt
   estado           EstadoCotizacion @default(BORRADOR)
   
-  // Configuración financiera
+  // Configuración financiera (Tasa Efectiva Anual)
   monedaOp         Moneda          @map("moneda_op")
-  tipoTasa         TipoTasa        @map("tipo_tasa")
   tasaIngresada    Decimal         @map("tasa_ingresada") @db.Decimal(8, 4)
-  capitalizacion   Capitalizacion?
   tea              Decimal         @db.Decimal(8, 6)
   tem              Decimal         @db.Decimal(10, 8)
   

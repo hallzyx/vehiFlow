@@ -21,9 +21,9 @@ mismos parámetros de entrada producen siempre los mismos resultados.
 
 ## Nomenclatura general
 Variables de entrada (prefijo e_):
-e_tipo_tasa : "EFECTIVA" | "NOMINAL"
+e_tipo_tasa : (no usado - siempre TEA directa)
 e_tasa : tasa ingresada por el usuario (%, ej: 18.00)
-e_capital : número (ej: capitalización m = 12)
+e_capital : (no usado - siempre TEA directa)
 e_precio : precio del vehículo
 e_cuota_ini : cuota inicial en monto
 e_plazo : plazo en meses
@@ -75,11 +75,9 @@ total_gastos, total_pagado, costo_credito
 
 INICIO
 
-// PASO 1 — Normalizar tasa
+// PASO 1 — Normalizar TEA (dividir entre 100)
 c_tea ← ALGORITMO_1_normalizarTasa(
-params.tipo_tasa,
-params.tasa_ingresada,
-params.capitalizacion
+  params.tasa_ingresada
 )
 c_tem ← ALGORITMO_2_calcularTEM(c_tea)
 
@@ -154,71 +152,43 @@ text
 
 ---
 
-## ALGORITMO 1 — Normalización de tasa de interés
+## ALGORITMO 1 — Normalización de TEA (tasa ingresada → decimal)
 
-Convierte cualquier tipo de tasa ingresada por el usuario a TEA
-en formato decimal, que es la unidad de trabajo del motor.
-FUNCIÓN normalizarTasa(tipo_tasa, tasa_ingresada, capitalizacion)
-→ tea_decimal
+Convierte la Tasa Efectiva Anual ingresada por el usuario a formato
+decimal, que es la unidad de trabajo del motor.
+FUNCIÓN normalizarTasa(teaPorcentaje) → tea_decimal
 
 ENTRADA:
-tipo_tasa : "EFECTIVA" | "NOMINAL"
-tasa_ingresada : número en % (ej: 18.00)
-capitalizacion : entero m (número de capitalizaciones/año)
-ignorado si tipo_tasa = "EFECTIVA"
+teaPorcentaje : TEA en % (ej: 18.00)
 
 SALIDA:
 tea_decimal : TEA expresada en decimal (ej: 0.18)
 
 FÓRMULA:
-Si EFECTIVA: TEA = tasa_ingresada / 100
-Si NOMINAL: TEA = (1 + TNA/m)^m - 1
-Donde TNA = tasa_ingresada / 100
+tea_decimal = teaPorcentaje / 100
 
 PRECONDICIÓN:
-tasa_ingresada > 0
-Si NOMINAL: capitalizacion > 0
+teaPorcentaje > 0
 
 PSEUDOCÓDIGO:
 
 INICIO
-tasa_decimal ← tasa_ingresada / 100
-
-SI tipo_tasa = "EFECTIVA" ENTONCES
-tea_decimal ← tasa_decimal
-
-SINO SI tipo_tasa = "NOMINAL" ENTONCES
-m ← capitalizacion
-SI m ≤ 0 ENTONCES
-LANZAR Error("Capitalización debe ser mayor a cero")
-FIN SI
-tea_decimal ← (1 + tasa_decimal / m)^m - 1
-
-SINO
-LANZAR Error("Tipo de tasa inválido: " + tipo_tasa)
-FIN SI
+tea_decimal ← teaPorcentaje / 100
 
 SI tea_decimal ≤ 0 ENTONCES
-LANZAR Error("TEA resultante debe ser positiva")
+LANZAR Error("TEA debe ser positiva")
 FIN SI
 
 RETORNAR tea_decimal
 FIN
 
-TABLA DE CONVERSIONES TÍPICAS (referencia):
-┌──────────────────────┬─────────┬────┬─────────────┐
-│ Tasa ingresada │ Tipo │ m │ TEA result.│
-├──────────────────────┼─────────┼────┼─────────────┤
-│ 18.00% │Efectiva │ — │ 18.0000% │
-│ 18.00% cap. mensual │Nominal │ 12 │ 19.5618% │
-│ 18.00% cap. trimest. │Nominal │ 4 │ 19.2522% │
-│ 18.00% cap. semest. │Nominal │ 2 │ 18.8100% │
-│ 18.00% cap. diaria │Nominal │360 │ 19.7161% │
-└──────────────────────┴─────────┴────┴─────────────┘
+NOTA:
+La tasa ingresada ya es Efectiva Anual (TEA), por lo que no se
+requiere conversión TNA→TEA ni parámetro de capitalización.
+Simplemente se divide entre 100 para obtener el valor decimal.
 
 CASO BORDE:
 Si tasa_ingresada = 0 → LANZAR Error (división por cero en TIR)
-Si m = 0 (capitalización) → LANZAR Error (división por cero)
 
 text
 
@@ -1144,9 +1114,6 @@ errores ← ]
 SI params.tasa_ingresada ≤ 0 ENTONCES
 AGREGAR "tasa_ingresada: debe ser mayor a cero" A errores
 FIN SI
-SI params.tipo_tasa = "NOMINAL" Y params.capitalizacion ≤ 0 ENTONCES
-AGREGAR "capitalizacion: requerida para tasa nominal" A errores
-FIN SI
 
 // ── Capital ───────────────────────────────────────────────
 SI params.precio_vehiculo ≤ 0 ENTONCES
@@ -1226,7 +1193,7 @@ text
 
 | Algoritmo | Norma aplicada                            | Artículo / Disposición                          |
 |-----------|-------------------------------------------|-------------------------------------------------|
-| ALG-1     | Res. SBS 8181-2012                        | Tasas en forma efectiva anual; año 360 días     |
+| ALG-1     | Res. SBS 8181-2012                        | TEA ingresada directamente; se divide entre 100  |
 | ALG-2     | Res. SBS 8181-2012                        | TEM derivada de TEA base 360 días               |
 | ALG-3     | Práctica de mercado BCP / MAF Perú        | Esquema Compra Inteligente — valor residual      |
 | ALG-4     | Res. SBS 8181-2012                        | Cronograma bajo sistema de cuotas               |
@@ -1254,8 +1221,7 @@ valor diferente en más de S/. 0.02, hay un error en el código.
 
 ### CASO A — Crédito estándar sin gracia ni residual (PEN)
 ENTRADA:
-tipo_tasa = EFECTIVA
-tasa_ingresada = 18.00%
+tasa_ingresada = 18.00% TEA (directa, no requiere capitalización)
 precio_vehiculo = S/. 55,000.00
 cuota_inicial = S/. 11,000.00 (20%)
 plazo_meses = 36
@@ -1269,8 +1235,8 @@ fecha_desembolso = 01/05/2026
 fecha_1era_cuota = 01/06/2026
 
 VALORES ESPERADOS:
-TEA = 18.0000%
-TEM = 1.3936%
+TEA = 18.00% (ingresada directamente; normalizada = 0.18)
+TEM = (1 + 0.18)^(30/360) - 1 = 1.3936%
 monto_financiado = S/. 44,000.00
 cuota_base = S/. 1,589.26
 cuota_total (k=1) = S/. 1,589.26 + 17.60 + 100.00 + 230.00 = S/. 1,936.86
@@ -1411,27 +1377,19 @@ text
 
 ---
 
-### CASO F — Tasa nominal cap. mensual
+### CASO F — TEA directa (referencia cruzada)
 ENTRADA:
-tipo_tasa = NOMINAL
-tasa_ingresada = 18.00%
-capitalizacion = 12 (mensual)
+tasa_ingresada = 18.00% TEA (directa)
 
 VALORES ESPERADOS:
-TEA = (1 + 0.18/12)^12 - 1
-= (1.015)^12 - 1
-= 1.195618 - 1
-= 19.5618%
+TEA = 18.00% (ingresada directamente)
+TEM = (1 + 0.18)^(30/360) - 1
+    = (1.18)^(0.08333) - 1
+    = 1.013936 - 1
+    = 1.3936%
 
-TEM = (1 + 0.195618)^(30/360) - 1
-= (1.195618)^(0.08333) - 1
-= 1.015000 - 1
-= 1.5000%
-
-VERIFICACIÓN: con cap. mensual, la TEM coincide exactamente con
-la tasa nominal mensual (TNA/12 = 18/12 = 1.5%). Esto es una
-propiedad matemática de la capitalización mensual. Si no coincide,
-hay un error en el ALGORITMO 1 o 2.
+VERIFICACIÓN: la TEA se divide entre 100 y se usa directamente
+para calcular la TEM. No hay conversión TNA→TEA.
 
 text
 
@@ -1442,9 +1400,9 @@ text
 Verificaciones que el equipo debe completar antes de integrar
 el motor financiero al backend de la aplicación.
 ALGORITMOS CORE
-[] ALG-1: normalizarTasa produce TEA=19.5618% para TNA=18% cap. mensual
+[] ALG-1: normalizarTasa(18) produce tea_decimal=0.18
 [] ALG-2: calcularTEM produce TEM=1.3936% para TEA=18%
-[] ALG-2: calcularTEM produce TEM=1.5000% para TEA=19.5618%
+[] ALG-2: verificar coherencia con CASO F
 [] ALG-3: capital_activo = financiado cuando residual_flag=false
 [] ALG-3: capital_activo = financiado - VP_residual cuando true
 [] ALG-4: saldo no cambia en gracia parcial
@@ -1502,8 +1460,8 @@ text
 | `P`             | Principal o capital financiado                           |
 | `TEA`           | Tasa Efectiva Anual (base 360 días, SBS Perú)            |
 | `TEM`           | Tasa Efectiva Mensual = (1+TEA)^(30/360) - 1            |
-| `TNA`           | Tasa Nominal Anual                                       |
-| `m`             | Número de capitalizaciones por año                       |
+| `TNA`           | (no usado) — siempre TEA directa                        |
+| `m`             | (no usado) — no hay capitalización                      |
 | `n`             | Número de períodos (cuotas de amortización)              |
 | `k`             | Índice del período actual (1 … n)                        |
 | `C`             | Cuota base fija (sistema francés)                        |

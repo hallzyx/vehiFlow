@@ -70,9 +70,7 @@ export async function POST(
 
       // 4. Recalculate financials
       const paramsCredito = {
-        tipoTasa: formData.parametros?.tipoTasa || cotizacionActual.tipoTasa,
         tasaIngresada: Number(formData.parametros?.tasaIngresada || cotizacionActual.tasaIngresada),
-        capitalizacion: formData.parametros?.capitalizacion || cotizacionActual.capitalizacion,
         precioVehiculo: Number(cotizacionActual.vehiculo.precioLista),
         cuotaInicial: Number(formData.parametros?.cuotaInicialMonto || cotizacionActual.cuotaIniMnt),
         plazoMeses: formData.parametros?.plazoMeses || cotizacionActual.plazoMeses,
@@ -101,9 +99,7 @@ export async function POST(
           version: cotizacionActual.version + 1,
           estado: 'SIMULADA',
           monedaOp: formData.parametros?.moneda || cotizacionActual.monedaOp,
-          tipoTasa: formData.parametros?.tipoTasa || cotizacionActual.tipoTasa,
           tasaIngresada: formData.parametros?.tasaIngresada || cotizacionActual.tasaIngresada,
-          capitalizacion: formData.parametros?.capitalizacion || cotizacionActual.capitalizacion,
           tea: resultadoFinanciero.tea,
           tem: resultadoFinanciero.tem,
           precioVeh: cotizacionActual.vehiculo.precioLista,

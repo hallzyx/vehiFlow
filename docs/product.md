@@ -1,7 +1,7 @@
 Product Overview
 1. Producto
 Nombre de trabajo: VehiFlow / Compra Inteligente Perú.
-Tipo de producto: aplicación web orientada a entidades financieras para originar, simular, registrar y administrar operaciones de crédito vehicular bajo modalidad “Compra Inteligente”, con cronograma de pagos por método francés vencido ordinario, meses de 30 días, soporte en soles y dólares, y tasas nominales o efectivas.
+Tipo de producto: aplicación web orientada a entidades financieras para originar, simular, registrar y administrar operaciones de crédito vehicular bajo modalidad “Compra Inteligente”, con cronograma de pagos por método francés vencido ordinario, meses de 30 días, soporte en soles y dólares, y tasa efectiva anual (TEA).
 
 El enunciado exige que la solución sea una aplicación web o móvil enfocada desde el punto de vista de la entidad que ofrece el servicio, con acceso mediante login y password, registro en base de datos de clientes y vehículos, y cálculo obligatorio de VAN y TIR del préstamo desde la perspectiva del deudor.
 
@@ -22,7 +22,7 @@ Construir una plataforma de simulación y originación de crédito vehicular que
 La aplicación debe sentirse como un sistema interno bancario-lite: confiable, auditable, explicable y listo para demostrar cumplimiento regulatorio en cada pantalla crítica.
 
 4. Objetivos del producto
-Permitir crear operaciones de crédito vehicular con configuración de moneda, tasa, capitalización, plazo, cuota inicial, valor residual y periodos de gracia.
+Permitir crear operaciones de crédito vehicular con configuración de moneda, tasa (TEA), plazo, cuota inicial, valor residual y periodos de gracia.
 
 Generar cronogramas de pago bajo sistema francés vencido ordinario y año comercial de 360 días, ya que la SBS dispone que las tasas se expresen en forma efectiva anual considerando un año de 360 días.
 
@@ -55,9 +55,7 @@ Bitácora de accesos y acciones sensibles para trazabilidad operativa.
 6.2 Configuración financiera
 Moneda de operación: PEN o USD.
 
-Tipo de tasa: nominal o efectiva.
-
-Si la tasa es nominal, debe definirse también la capitalización, porque el enunciado lo exige expresamente.
+Tipo de tasa: siempre Tasa Efectiva Anual (TEA). El sistema la usa directamente para calcular la TEM mensual.
 
 Periodicidad de pago, plazo total, fecha de desembolso, fecha de primera cuota y tratamiento de días.
 
@@ -126,7 +124,7 @@ Gestión de cancelación total, constancia de no adeudo y levantamiento de garan
 7.1 Tasas
 La SBS dispone que las tasas de interés compensatorio y moratorio se expresen en forma efectiva anual y que se considere un año de 360 días.
 
-En consecuencia, aunque el sistema permita ingresar una tasa nominal o efectiva por conveniencia operativa del curso, internamente debe convertir y normalizar la tasa a una forma periódica coherente y exponer al usuario la TEA/TCEA conforme a la normativa.
+En consecuencia, aunque el sistema permita ingresar una TEA por conveniencia operativa del curso, internamente debe normalizarla a una forma periódica coherente y exponer al usuario la TEA/TCEA conforme a la normativa.
 
 7.2 TCEA
 La TCEA debe igualar el valor actual de todas las cuotas con el monto efectivamente recibido en préstamo, incorporando principal, intereses, comisiones y gastos trasladados al cliente, y en los casos previstos también seguros.
@@ -169,9 +167,9 @@ CRUD de vehículos.
 
 Simulación de crédito vehicular en PEN y USD.
 
-Soporte para tasa nominal y efectiva.
+Soporte para Tasa Efectiva Anual (TEA) directa, sin necesidad de capitalización.
 
-Soporte para capitalización cuando la tasa sea nominal.
+Nota: la capitalización no aplica porque la tasa ingresada ya es efectiva anual.
 
 Soporte para gracia total y parcial.
 
@@ -277,11 +275,7 @@ cuota_inicial
 
 monto_financiado
 
-tipo_tasa
-
 tasa_ingresada
-
-capitalizacion
 
 tea
 

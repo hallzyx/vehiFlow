@@ -8,27 +8,16 @@ export type HelpFieldContent = {
 }
 
 export const ayudaCamposCotizacion: Record<string, HelpFieldContent> = {
-  tipoTasa: {
-    title: "Tipo de tasa",
-    definition:
-      "La tasa puede ser efectiva (TEA) o nominal (TNA). Si es nominal, debe indicarse la capitalización para convertirla correctamente.",
-    formula: "TEA = (1 + TNA/m)^m - 1",
-    example: "TNA 18% capitalizable mensual (m=12) equivale a TEA 19.5618%.",
-    normativa: "Res. SBS 8181-2012 (tasas efectivas y transparencia)",
-    sectionSlug: "formulas-cronograma",
-  },
   capitalizacion: {
-    title: "Capitalización",
-    definition:
-      "Es la frecuencia con que la tasa nominal acumula intereses durante el año (mensual, trimestral, etc.).",
-    formula: "TEA = (1 + TNA/m)^m - 1",
-    example: "A mayor frecuencia de capitalización, mayor TEA equivalente.",
+    title: "Capitalización (no aplica)",
+    definition: "Este campo ya no se utiliza. La tasa se ingresa directamente como Tasa Efectiva Anual (TEA), por lo que no requiere conversión ni capitalización.",
+    formula: "—",
     sectionSlug: "formulas-cronograma",
   },
   tasaIngresada: {
-    title: "Tasa ingresada",
-    definition: "Tasa anual ingresada por el asesor. El motor la normaliza y calcula la TEM mensual.",
-    formula: "TEM = (1 + TEA)^(30/360) - 1",
+    title: "Tasa Efectiva Anual (TEA)",
+    definition: "Tasa efectiva anual ingresada por el asesor. El motor la usa directamente para calcular la TEM mensual sin necesidad de conversión.",
+    formula: "TEA → TEM = (1 + TEA)^(30/360) - 1",
     example: "TEA 18% → TEM 1.3936%",
     sectionSlug: "formulas-cronograma",
   },

@@ -81,7 +81,6 @@ export default function EditCotizacionPage({
         vehiculo: { ...cotizacion.vehiculo },
         parametros: {
           moneda: cotizacion.moneda,
-          tipoTasa: cotizacion.tipoTasa,
           tasaIngresada: cotizacion.tasaIngresada,
           capitalizacion: cotizacion.capitalizacion,
           cuotaInicialPct: cotizacion.cuotaInicialPct,
@@ -395,22 +394,7 @@ export default function EditCotizacionPage({
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="tipoTasa">Tipo de Tasa</Label>
-                  <Select
-                    value={formData.parametros?.tipoTasa || ""}
-                    onValueChange={(value) => handleFieldChange("parametros.tipoTasa", value)}
-                  >
-                    <SelectTrigger className={modifiedFields.has("parametros.tipoTasa") ? "border-blue-500" : ""}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NOMINAL">Nominal</SelectItem>
-                      <SelectItem value="EFECTIVA">Efectiva</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="tasaIngresada">Tasa (%)</Label>
+                  <Label htmlFor="tasaIngresada">Tasa Efectiva Anual (TEA %)</Label>
                   <Input
                     id="tasaIngresada"
                     type="number"
@@ -420,25 +404,7 @@ export default function EditCotizacionPage({
                     className={modifiedFields.has("parametros.tasaIngresada") ? "border-blue-500" : ""}
                   />
                 </div>
-                {formData.parametros?.tipoTasa === 'NOMINAL' && (
-                  <div>
-                    <Label htmlFor="capitalizacion">Capitalización</Label>
-                    <Select
-                      value={formData.parametros?.capitalizacion || ""}
-                      onValueChange={(value) => handleFieldChange("parametros.capitalizacion", value)}
-                    >
-                      <SelectTrigger className={modifiedFields.has("parametros.capitalizacion") ? "border-blue-500" : ""}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MENSUAL">Mensual</SelectItem>
-                        <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
-                        <SelectItem value="SEMESTRAL">Semestral</SelectItem>
-                        <SelectItem value="ANUAL">Anual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+
                 <div>
                   <Label htmlFor="plazoMeses">Plazo (meses)</Label>
                   <Input

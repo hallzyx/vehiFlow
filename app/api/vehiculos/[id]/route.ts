@@ -227,7 +227,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     primera.setDate(primera.getDate() + 30)
 
     const resultado = calcularCredito({
-      tipoTasa: "EFECTIVA",
       tasaIngresada,
       precioVehiculo: precio,
       cuotaInicial,
