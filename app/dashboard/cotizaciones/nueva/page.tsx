@@ -65,6 +65,13 @@ export default function NuevaCotizacionPage() {
     segVehicular: 1200,
     gastoGps: 150,
     gastoNotarial: 80,
+    // Seguros - información póliza (SBS Res. 8181-2012 Anexo 4)
+    segDesgravTipo: "ENTIDAD" as "ENTIDAD" | "EXTERNA",
+    segDesgravCia: "",
+    segDesgravPoliza: "",
+    segVehicularTipo: "ENTIDAD" as "ENTIDAD" | "EXTERNA",
+    segVehicularCia: "",
+    segVehicularPoliza: "",
     motivoEdicion: "",
   })
 
@@ -466,8 +473,7 @@ export default function NuevaCotizacionPage() {
                     />
                   </label>
                 )}
-
-                <label className="space-y-1">
+<label className="space-y-1">
                   <span className="text-sm flex items-center">
                     Seguro desgravamen mensual (%)
                     <HelpTooltip {...ayudaCamposCotizacion.segDesgrav} />
@@ -481,6 +487,38 @@ export default function NuevaCotizacionPage() {
                   />
                 </label>
                 <label className="space-y-1">
+                  <span className="text-sm">Tipo póliza desgravamen</span>
+                  <select
+                    className="w-full border rounded p-2"
+                    value={parametros.segDesgravTipo || "ENTIDAD"}
+                    onChange={(e) => setParametros((p) => ({ ...p, segDesgravTipo: e.target.value as "ENTIDAD" | "EXTERNA" }))}
+                  >
+                    <option value="ENTIDAD">Entidad financiera</option>
+                    <option value="EXTERNA">Póliza externa (cliente)</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm">Compañía de seguros (desgravamen)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded p-2"
+                    value={parametros.segDesgravCia || ""}
+                    onChange={(e) => setParametros((p) => ({ ...p, segDesgravCia: e.target.value }))}
+                    placeholder="Ej: Rímac, Pacífico, La Positiva..."
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm">N° Póliza (desgravamen)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded p-2"
+                    value={parametros.segDesgravPoliza || ""}
+                    onChange={(e) => setParametros((p) => ({ ...p, segDesgravPoliza: e.target.value }))}
+                    placeholder="Número de póliza"
+                  />
+                </label>
+
+                <label className="space-y-1">
                   <span className="text-sm flex items-center">
                     Seguro vehicular anual
                     <HelpTooltip {...ayudaCamposCotizacion.segVehicular} />
@@ -492,6 +530,38 @@ export default function NuevaCotizacionPage() {
                     onChange={(e) => setParametros((p) => ({ ...p, segVehicular: Number(e.target.value) }))}
                   />
                 </label>
+                <label className="space-y-1">
+                  <span className="text-sm">Tipo póliza vehicular</span>
+                  <select
+                    className="w-full border rounded p-2"
+                    value={parametros.segVehicularTipo || "ENTIDAD"}
+                    onChange={(e) => setParametros((p) => ({ ...p, segVehicularTipo: e.target.value as "ENTIDAD" | "EXTERNA" }))}
+                  >
+                    <option value="ENTIDAD">Entidad financiera</option>
+                    <option value="EXTERNA">Póliza externa (cliente)</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm">Compañía de seguros (vehicular)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded p-2"
+                    value={parametros.segVehicularCia || ""}
+                    onChange={(e) => setParametros((p) => ({ ...p, segVehicularCia: e.target.value }))}
+                    placeholder="Ej: Rímac, Pacífico, La Positiva..."
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm">N° Póliza (vehicular)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded p-2"
+                    value={parametros.segVehicularPoliza || ""}
+                    onChange={(e) => setParametros((p) => ({ ...p, segVehicularPoliza: e.target.value }))}
+                    placeholder="Número de póliza"
+                  />
+                </label>
+
                 <label className="space-y-1">
                   <span className="text-sm">Gasto GPS</span>
                   <input

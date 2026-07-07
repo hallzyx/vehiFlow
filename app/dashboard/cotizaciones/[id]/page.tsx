@@ -129,6 +129,12 @@ export default function CotizacionDetailPage({
                   Editar cotización
                 </Link>
               )}
+              <Link
+                href={`/dashboard/cotizaciones/${cotizacion.id}/hoja-resumen`}
+                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800"
+              >
+                Ver Hoja Resumen (Anexo 3 SBS)
+              </Link>
               <button
                 onClick={async () => {
                   setGeneratingLink(true)
@@ -281,7 +287,8 @@ export default function CotizacionDetailPage({
                   <th className="text-right p-2">Saldo inicial</th>
                   <th className="text-right p-2">Interés</th>
                   <th className="text-right p-2">Amort.</th>
-                  <th className="text-right p-2">Seguro</th>
+                  <th className="text-right p-2">Desgravamen</th>
+                  <th className="text-right p-2">Vehicular</th>
                   <th className="text-right p-2">Gastos</th>
                   <th className="text-right p-2">Cuota total</th>
                   <th className="text-right p-2">Saldo final</th>
@@ -296,13 +303,26 @@ export default function CotizacionDetailPage({
                     <td className="p-2 text-right">{Number(q.saldoInicial).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
-                    <td className="p-2 text-right">{(Number(q.segDesgravamen) + Number(q.segVehicular)).toFixed(2)}</td>
+                    <td className="p-2 text-right">{Number(q.segDesgravamen).toFixed(2)}</td>
+                    <td className="p-2 text-right">{Number(q.segVehicular).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.otrosGastos).toFixed(2)}</td>
                     <td className="p-2 text-right font-medium">{Number(q.cuotaTotal).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-slate-50 font-semibold border-t-2">
+                <tr>
+                  <td className="p-2" colSpan={4}>TOTALES</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.interes), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.amortizacion), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.segDesgravamen), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.segVehicular), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.otrosGastos), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.cuotaTotal), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">—</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>

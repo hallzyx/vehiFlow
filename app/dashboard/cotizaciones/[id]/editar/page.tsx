@@ -23,6 +23,56 @@ export default function EditCotizacionPage({
   const [recalculationResult, setRecalculationResult] = useState<any>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
 
+  const FIELD_MAP: Record<string, string> = {
+    moneda: 'monedaOp',
+    cuotaInicialPct: 'cuotaIniPct',
+    cuotaInicialMonto: 'cuotaIniMnt',
+    fecPrimeraCuota: 'fec1eraCuota',
+    periodoGracia: 'graciaMeses',
+    valorResidual: 'residualMonto',
+    segDesgravamen: 'segDesgrav',
+    otrosGastos: 'gastoGps',
+  }
+
+  const getOriginalValue = (field: string): any => {
+    const keys = field.split('.')
+    if (keys[0] === 'parametros') {
+      const mappedKey = FIELD_MAP[keys[1]] || keys[1]
+      return cotizacion?.[mappedKey]
+    }
+    let current: any = cotizacion
+    for (const key of keys) {
+      if (current == null) return undefined
+      current = current[key]
+    }
+    return current
+  }
+
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData((prev: any) => {
+      const newData = { ...prev }
+      const keys = field.split('.')
+      let current = newData
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) current[keys[i]] = {}
+        current = current[keys[i]]
+      }
+      current[keys[keys.length - 1]] = value
+      return newData
+    })
+
+    const original = getOriginalValue(field)
+    if (original !== value) {
+      setModifiedFields(prev => new Set([...prev, field]))
+    } else {
+      setModifiedFields(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(field)
+        return newSet
+      })
+    }
+  }
+
   const handleRecalculate = async () => {
     setIsRecalculating(true)
     try {
@@ -44,93 +94,37 @@ export default function EditCotizacionPage({
     }
   }
 
-  const handleFieldChange = (field: string, value: any) => {
-    setFormData((prev: any) => {
-      const newData = { ...prev }
-      const keys = field.split('.')
-      let current = newData
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {}
-        current = current[keys[i]]
-      }
-      current[keys[keys.length - 1]] = value
-      return newData
-    })
-
-    // Check if field changed from original
-    const keys = field.split('.')
-    let original = cotizacion
-    for (let i = 0; i < keys.length - 1; i++) {
-      original = original[keys[i]]
-    }
-    if (original[keys[keys.length - 1]] !== value) {
-      setModifiedFields(prev => new Set([...prev, field]))
-    } else {
-      setModifiedFields(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(field)
-        return newSet
-      })
-    }
-  }
-
+  // Fetch cotización on mount
   useEffect(() => {
-    if (cotizacion) {
-      setFormData({
-        cliente: { ...cotizacion.cliente },
-        vehiculo: { ...cotizacion.vehiculo },
-        parametros: {
-          moneda: cotizacion.moneda,
-          tasaIngresada: cotizacion.tasaIngresada,
-          capitalizacion: cotizacion.capitalizacion,
-          cuotaInicialPct: cotizacion.cuotaInicialPct,
-          cuotaInicialMonto: cotizacion.cuotaInicialMonto,
-          montoFinanc: cotizacion.montoFinanc,
-          plazoMeses: cotizacion.plazoMeses,
-          fecDesembolso: cotizacion.fecDesembolso,
-          fecPrimeraCuota: cotizacion.fecPrimeraCuota,
-          periodoGracia: cotizacion.periodoGracia,
-          valorResidual: cotizacion.valorResidual,
-          segDesgravamen: cotizacion.segDesgravamen,
-          segVehicular: cotizacion.segVehicular,
-          otrosGastos: cotizacion.otrosGastos,
-        }
-      })
-    }
-  const handleFieldChange = (field: string, value: any) => {
-    setFormData((prev: any) => {
-      const newData = { ...prev }
-      const keys = field.split('.')
-      let current = newData
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {}
-        current = current[keys[i]]
-      }
-      current[keys[keys.length - 1]] = value
-      return newData
-    })
-
-    // Check if field changed from original
-    const keys = field.split('.')
-    let original = cotizacion
-    for (let i = 0; i < keys.length - 1; i++) {
-      original = original[keys[i]]
-    }
-    if (original[keys[keys.length - 1]] !== value) {
-      setModifiedFields(prev => new Set([...prev, field]))
-    } else {
-      setModifiedFields(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(field)
-        return newSet
-      })
-    }
-  }
     params.then(({ id: paramId }) => {
       setId(paramId)
       fetchCotizacion(paramId)
     })
-  }, [params])
+  }, [params]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fill form when cotizacion data arrives
+  useEffect(() => {
+    if (!cotizacion) return
+    setFormData({
+      cliente: { ...cotizacion.cliente },
+      vehiculo: { ...cotizacion.vehiculo },
+      parametros: {
+        moneda: cotizacion.monedaOp,
+        tasaIngresada: cotizacion.tasaIngresada,
+        cuotaInicialPct: cotizacion.cuotaIniPct,
+        cuotaInicialMonto: cotizacion.cuotaIniMnt,
+        montoFinanc: cotizacion.montoFinanc,
+        plazoMeses: cotizacion.plazoMeses,
+        fecDesembolso: cotizacion.fecDesembolso,
+        fecPrimeraCuota: cotizacion.fec1eraCuota,
+        periodoGracia: cotizacion.graciaMeses,
+        valorResidual: cotizacion.residualMonto,
+        segDesgravamen: cotizacion.segDesgrav,
+        segVehicular: cotizacion.segVehicular,
+        otrosGastos: cotizacion.gastoGps,
+      }
+    })
+  }, [cotizacion])
 
   const fetchCotizacion = async (cotId: string) => {
     try {
@@ -442,7 +436,7 @@ export default function EditCotizacionPage({
                       </div>
                       <div>
                         <p className="text-slate-500">VAN Deudor</p>
-                        <p className="font-medium">{c.moneda} {recalculationResult.indicadores.vanDeudor.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                        <p className="font-medium">{c.monedaOp} {recalculationResult.indicadores.vanDeudor.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
                       </div>
                       <div>
                         <p className="text-slate-500">TIR Anual</p>

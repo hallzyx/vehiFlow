@@ -32,6 +32,14 @@ export interface ParametrosCredito {
   segVehicularAnual?: number;
   gastoGps?: number;
   gastoNotarial?: number;
+  
+  // Campos para validar cargos NO permitidos (Ley 28587 Art. 7°, Res. SBS 8181-2012)
+  // DEBEN SER 0 o undefined - el motor los rechaza si son > 0
+  comisionDesembolso?: number;
+  comisionEvaluacion?: number;
+  comisionAdministracion?: number;
+  gastoGarantiaVehicular?: number;
+  penalidadAnticipado?: number;
 }
 
 export interface ResultadoFinanciero {
@@ -49,6 +57,8 @@ export interface ResultadoFinanciero {
   totalGastos: number;
   totalPagado: number;
   costoCredito: number;
+  // Descomposición TCEA para transparencia SBS
+  descomposicionTCEA?: DescomposicionTCEA;
 }
 
 export interface Cuota {
@@ -63,6 +73,58 @@ export interface Cuota {
   otrosGastos: number;
   cuotaTotal: number;
   saldoFinal: number;
+}
+
+// ============================================
+// VALIDACIÓN: Cargos Prohibidos (Ley 28587 Art. 7°, Res. SBS 8181-2012)
+// ============================================
+
+export interface ValidacionCargosResultado {
+  valido: boolean;
+  errores: string[];
+  advertencias: string[];
+}
+
+export function validarCargosPermitidos(params: ParametrosCredito): ValidacionCargosResultado {
+  const errores: string[] = [];
+  const advertencias: string[] = [];
+
+  // Cargos EXPRESAMENTE PROHIBIDOS por SBS (Ley 28587 Art. 7°, Res. 8181-2012 Anexo 3)
+  if ((params.comisionDesembolso ?? 0) > 0) {
+    errores.push('COMISIÓN POR DESEMBOLSO: Prohibida por Res. SBS 8181-2012 (cargo por servicio inherente al crédito)');
+  }
+  if ((params.comisionEvaluacion ?? 0) > 0) {
+    errores.push('COMISIÓN POR EVALUACIÓN CREDITICIA: Prohibida por Res. SBS 8181-2012 (costo interno de la entidad)');
+  }
+  if ((params.comisionAdministracion ?? 0) > 0) {
+    errores.push('COMISIÓN POR ADMINISTRACIÓN DEL CRÉDITO: Prohibida por Res. SBS 8181-2012 (servicio inherente)');
+  }
+  if ((params.gastoGarantiaVehicular ?? 0) > 0) {
+    errores.push('GASTOS DE CONSTITUCIÓN/LEVANTAMIENTO DE GARANTÍA VEHICULAR: Prohibidos por Res. SBS 8181-2012');
+  }
+  if ((params.penalidadAnticipado ?? 0) > 0) {
+    errores.push('PENALIDAD POR CANCELACIÓN ANTICIPADA: Prohibida por Ley 29571 Art. 85° y Res. SBS 8181-2012');
+  }
+
+  // Cargos PERMITIDOS pero que deben informarse claramente (Res. SBS 8181-2012)
+  if ((params.segDesgravamenPct ?? 0) > 0) {
+    advertencias.push('Seguro desgravamen: Informar monto prima, compañía, póliza y derecho a póliza externa (Res. SBS 8181-2012 Art. seguros)');
+  }
+  if ((params.segVehicularAnual ?? 0) > 0) {
+    advertencias.push('Seguro vehicular: Informar monto prima, compañía, póliza y derecho a póliza externa (Res. SBS 8181-2012 Art. seguros)');
+  }
+  if ((params.gastoGps ?? 0) > 0) {
+    advertencias.push('Gasto GPS: Debe ser servicio efectivamente prestado y aceptado por el cliente');
+  }
+  if ((params.gastoNotarial ?? 0) > 0) {
+    advertencias.push('Gasto notarial: Debe ser servicio efectivamente prestado y aceptado por el cliente');
+  }
+
+  return {
+    valido: errores.length === 0,
+    errores,
+    advertencias,
+  };
 }
 
 // ============================================
@@ -356,6 +418,75 @@ export function calcularTCEA(
 }
 
 // ============================================
+// ALGORITMO 7B: Descomponer TCEA por componentes
+// ============================================
+// Calcula la TCEA progresivamente para mostrar qué aporta cada componente
+// Útil para transparencia SBS (Anexo 3 - Hoja Resumen)
+
+export interface DescomposicionTCEA {
+  teaBase: number;           // TEA sin seguros ni gastos
+  efectoDesgravamen: number; // Incremento por seguro desgravamen
+  efectoVehicular: number;   // Incremento por seguro vehicular
+  efectoGastos: number;      // Incremento por GPS + Notarial
+  tceaFinal: number;         // TCEA total (debe coincidir con calcularTCEA)
+}
+
+export function descomponerTCEA(
+  montoFinanciado: number,
+  cronograma: Cuota[],
+  tem: number
+): DescomposicionTCEA {
+  // Función auxiliar para calcular TCEA dado un array de flujos
+  const calcularTCEAFlujos = (flujos: number[]): number => {
+    let r = tem;
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      let f = 0;
+      let fPrima = 0;
+      for (let k = 0; k < flujos.length; k++) {
+        const cf = flujos[k];
+        const factor = Math.pow(1 + r, k + 1);
+        f += cf / factor;
+        fPrima -= (k + 1) * cf / Math.pow(1 + r, k + 2);
+      }
+      f = montoFinanciado - f;
+      fPrima = -fPrima;
+      if (Math.abs(fPrima) < TOL) break;
+      const rNuevo = r - f / fPrima;
+      if (Math.abs(rNuevo - r) < TOL) { r = rNuevo; break; }
+      r = rNuevo;
+    }
+    return redondear((Math.pow(1 + r, DIAS_ANIO / DIAS_MES) - 1) * 100, 4);
+  };
+
+  // 1. TEA Base: solo cuota base (interés + amortización) SIN seguros ni gastos
+  const flujosBase = cronograma.map(q => q.interes + q.amortizacion);
+  const teaBase = calcularTCEAFlujos(flujosBase);
+
+  // 2. + Desgravamen
+  const flujosConDesgrav = cronograma.map(q => q.interes + q.amortizacion + q.segDesgravamen);
+  const tceaConDesgrav = calcularTCEAFlujos(flujosConDesgrav);
+  const efectoDesgravamen = redondear(tceaConDesgrav - teaBase, 4);
+
+  // 3. + Vehicular
+  const flujosConVehicular = cronograma.map(q => q.interes + q.amortizacion + q.segDesgravamen + q.segVehicular);
+  const tceaConVehicular = calcularTCEAFlujos(flujosConVehicular);
+  const efectoVehicular = redondear(tceaConVehicular - tceaConDesgrav, 4);
+
+  // 4. + Gastos (GPS + Notarial en primera cuota)
+  const flujosConGastos = cronograma.map(q => q.cuotaTotal); // ya incluye todo
+  const tceaFinal = calcularTCEAFlujos(flujosConGastos);
+  const efectoGastos = redondear(tceaFinal - tceaConVehicular, 4);
+
+  return {
+    teaBase,
+    efectoDesgravamen,
+    efectoVehicular,
+    efectoGastos,
+    tceaFinal,
+  };
+}
+
+// ============================================
 // ALGORITMO 8: Calcular VAN del Deudor
 // ============================================
 
@@ -450,6 +581,15 @@ export function calcularTotales(cronograma: Cuota[], montoFinanciado: number) {
 // ============================================
 
 export function calcularCredito(params: ParametrosCredito): ResultadoFinanciero {
+  // Paso 0: Validar cargos permitidos (SBS)
+  const validacionCargos = validarCargosPermitidos(params);
+  if (validacionCargos.errores.length > 0) {
+    throw new Error(validacionCargos.errores.join('; '));
+  }
+  if (validacionCargos.advertencias.length > 0) {
+    console.warn('[Motor Financiero] Validación cargos SBS:', validacionCargos.advertencias);
+  }
+
   // Paso 1: Normalizar TEA
   const tea = normalizarTasa(params.tasaIngresada);
   const tem = calcularTEM(tea);
@@ -509,6 +649,13 @@ export function calcularCredito(params: ParametrosCredito): ResultadoFinanciero 
   const tirMensual = calcularTIR(montoFinanciado, cronograma, tem);
   const tirAnual = Math.pow(1 + tirMensual, 12) - 1;
 
+  // Paso 7B: Descomponer TCEA (transparencia SBS)
+  const descomposicionTCEA = descomponerTCEA(
+    montoFinanciado,
+    cronograma,
+    tem
+  );
+
   // Paso 8: Calcular totales
   const totales = calcularTotales(cronograma, montoFinanciado);
 
@@ -526,6 +673,7 @@ export function calcularCredito(params: ParametrosCredito): ResultadoFinanciero 
     totalSeguros: totales.totalSeguros,
     totalGastos: totales.totalGastos,
     totalPagado: totales.totalPagado,
-    costoCredito: totales.costoCredito
+    costoCredito: totales.costoCredito,
+    descomposicionTCEA,
   };
 }

@@ -104,7 +104,8 @@ export default async function PortalCotizacionPage({ params, searchParams }: Pro
                   <th className="text-left p-2">Fecha</th>
                   <th className="text-right p-2">Interés</th>
                   <th className="text-right p-2">Amortización</th>
-                  <th className="text-right p-2">Seguro</th>
+                  <th className="text-right p-2">Desgravamen</th>
+                  <th className="text-right p-2">Vehicular</th>
                   <th className="text-right p-2">Gastos</th>
                   <th className="text-right p-2">Cuota total</th>
                   <th className="text-right p-2">Saldo final</th>
@@ -118,13 +119,26 @@ export default async function PortalCotizacionPage({ params, searchParams }: Pro
                     <td className="p-2">{new Date(q.fecVencimiento).toLocaleDateString("es-PE")}</td>
                     <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
-                    <td className="p-2 text-right">{(Number(q.segDesgravamen) + Number(q.segVehicular)).toFixed(2)}</td>
+                    <td className="p-2 text-right">{Number(q.segDesgravamen).toFixed(2)}</td>
+                    <td className="p-2 text-right">{Number(q.segVehicular).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.otrosGastos).toFixed(2)}</td>
                     <td className="p-2 text-right font-semibold">{Number(q.cuotaTotal).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-slate-50 font-semibold border-t-2">
+                <tr>
+                  <td className="p-2" colSpan={3}>TOTALES</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.interes), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.amortizacion), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.segDesgravamen), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.segVehicular), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.otrosGastos), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">{cotizacion.cuotas.reduce((a: number, q: any) => a + Number(q.cuotaTotal), 0).toFixed(2)}</td>
+                  <td className="p-2 text-right">—</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>

@@ -250,6 +250,14 @@ model Cotizacion {
   segVehicular     Decimal?        @map("seg_vehi") @db.Decimal(10, 2)
   gastoGps         Decimal?        @map("gasto_gps") @db.Decimal(10, 2)
   gastoNotarial    Decimal?        @map("gasto_not") @db.Decimal(10, 2)
+
+  // Seguros - Información de póliza (SBS Res. 8181-2012 Anexo 4)
+  segDesgravTipo     String?       @default("ENTIDAD") @map("seg_desgrav_tipo") @db.VarChar(20) // ENTIDAD | EXTERNA
+  segDesgravCia      String?       @map("seg_desgrav_cia") @db.VarChar(100)
+  segDesgravPoliza   String?       @map("seg_desgrav_poliza") @db.VarChar(50)
+  segVehicularTipo   String?       @default("ENTIDAD") @map("seg_vehi_tipo") @db.VarChar(20) // ENTIDAD | EXTERNA
+  segVehicularCia    String?       @map("seg_vehi_cia") @db.VarChar(100)
+  segVehicularPoliza String?       @map("seg_vehi_poliza") @db.VarChar(50)
   
   // Indicadores financieros calculados
   tcea             Decimal         @db.Decimal(8, 4)

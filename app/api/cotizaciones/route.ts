@@ -57,6 +57,13 @@ const schemaCrearCotizacion = z.object({
     segVehicular: z.number().min(0).optional(),
     gastoGps: z.number().min(0).optional(),
     gastoNotarial: z.number().min(0).optional(),
+    // Seguros - información póliza (SBS Res. 8181-2012 Anexo 4)
+    segDesgravTipo: z.enum(["ENTIDAD", "EXTERNA"]).optional(),
+    segDesgravCia: z.string().optional(),
+    segDesgravPoliza: z.string().optional(),
+    segVehicularTipo: z.enum(["ENTIDAD", "EXTERNA"]).optional(),
+    segVehicularCia: z.string().optional(),
+    segVehicularPoliza: z.string().optional(),
     motivoEdicion: z.string().optional(),
   }),
 })
@@ -276,6 +283,13 @@ export async function POST(req: NextRequest) {
         segVehicular: p.segVehicular,
         gastoGps: p.gastoGps,
         gastoNotarial: p.gastoNotarial,
+        // Seguros - información póliza (SBS Res. 8181-2012 Anexo 4)
+        segDesgravTipo: p.segDesgravTipo ?? "ENTIDAD",
+        segDesgravCia: p.segDesgravCia,
+        segDesgravPoliza: p.segDesgravPoliza,
+        segVehicularTipo: p.segVehicularTipo ?? "ENTIDAD",
+        segVehicularCia: p.segVehicularCia,
+        segVehicularPoliza: p.segVehicularPoliza,
         tcea: resultado.tcea,
         vanDeudor: resultado.vanDeudor,
         tirMensual: resultado.tirMensual,
