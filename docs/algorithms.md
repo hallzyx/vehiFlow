@@ -17,6 +17,56 @@ de crédito en un cronograma de pagos, indicadores financieros
 y documentos exportables. Es completamente determinístico: los
 mismos parámetros de entrada producen siempre los mismos resultados.
 
+> **Nota de implementación:** El motor en código
+> (lib/motor-financiero.ts) implementa el pipeline *Planes de Pago —
+> Ordinario — Compra Inteligente*: doble cronograma (cuota
+> regular + cuota final/balón), conversión TNA→TEA con
+> capitalización, PMT(TEM + pSegDesPer), TCEA = (1+IRR)^12−1 y
+> VAN = Préstamo + NPV(COKi, flujos). El pseudocódigo TEA-only
+> de las secciones posteriores queda **superseded para
+> implementación**; úsese la sección «ALGORITMO» como
+> referencia operativa y el enunciado SI642 ante conflicto.
+
+---
+
+## ALGORITMO — Pipeline implementado (Compra Inteligente)
+
+Resumen del flujo real del motor:
+
+```
+ENTRADA: tipoTasa (TEA|TNA), tasaIngresada, capitalizacion?,
+         PV, CI, plazo N, gracia T/P, pctCuotaFinal / residual,
+         costos iniciales, costos periódicos (pSegDesPer, …), COK
+
+1) Normalizar tasa
+   Si TNA: TEA = (1 + TNA/(360/d))^(360/d) − 1   (d=1 diaria | 30 mensual)
+   Si TEA: usar directa (capitalización no aplica)
+
+2) TEM = (1+TEA)^(30/360) − 1
+   COKi = (1+COK)^(30/360) − 1
+
+3) Préstamo = PV − CI + Σ costos iniciales financiados
+
+4) Capital activo (si hay residual/cuota final):
+   VP_residual = Residual / (1+TEM+pSegDesPer)^(N+1)
+   CapitalActivo = Préstamo − VP_residual
+
+5) Cuota regular = PMT(TEM + pSegDesPer, n_amort, −CapitalActivo)
+   (gracia total capitaliza; gracia parcial paga solo interés)
+
+6) Doble cronograma por período k = 1..N[+1]:
+   — Saldo cuota regular: interés, seg. desgravamen, amortización, saldo
+   — Saldo cuota final (CF): interés/seg. sobre residual; balón en k=N+1
+   — Flujo deudor = cuota regular + CF + seguros/gastos periódicos
+
+7) Indicadores
+   TIR = IRR(flujos)
+   TCEA = (1+TIR)^12 − 1
+   VAN  = Préstamo + NPV(COKi, Flujo_1..n)
+```
+
+Constantes: DIAS_MES=30, DIAS_ANIO=360.
+
 ---
 
 ## Nomenclatura general
@@ -1214,7 +1264,7 @@ text
 Conjunto de casos de prueba determinísticos para verificar que
 la implementación del motor produce los resultados esperados.
 Todos los valores de salida fueron calculados manualmente y
-validados con Excel financiero. Si la implementación arroja un
+validados de forma independiente. Si la implementación arroja un
 valor diferente en más de S/. 0.02, hay un error en el código.
 
 ---

@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
+import { buildParametrosCredito, mapCuotaToPrisma } from "@/lib/cotizacion-params"
 import { obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 
 export async function POST(
@@ -68,27 +69,47 @@ export async function POST(
         })
       }
 
-      // 4. Recalculate financials
-      const paramsCredito = {
-        tasaIngresada: Number(formData.parametros?.tasaIngresada || cotizacionActual.tasaIngresada),
-        precioVehiculo: Number(cotizacionActual.vehiculo.precioLista),
-        cuotaInicial: Number(formData.parametros?.cuotaInicialMonto || cotizacionActual.cuotaIniMnt),
-        plazoMeses: formData.parametros?.plazoMeses || cotizacionActual.plazoMeses,
-        fechaDesembolso: new Date(cotizacionActual.fecDesembolso),
-        fechaPrimeraCuota: new Date(formData.parametros?.fecPrimeraCuota || cotizacionActual.fec1eraCuota),
-        graciaFlag: cotizacionActual.graciaFlag,
-        graciaTipo: cotizacionActual.graciaTipo,
-        graciaMeses: formData.parametros?.periodoGracia || cotizacionActual.graciaMeses || 0,
-        residualFlag: cotizacionActual.residualFlag,
-        residualMonto: Number(formData.parametros?.valorResidual || cotizacionActual.residualMonto || 0),
-        segDesgravamenPct: Number(formData.parametros?.segDesgravamen || cotizacionActual.segDesgrav || 0),
-        segVehicularAnual: Number(formData.parametros?.segVehicular || cotizacionActual.segVehicular || 0),
-        gastoGps: Number(formData.parametros?.otrosGastos || cotizacionActual.gastoGps || 0),
-        gastoNotarial: Number(cotizacionActual.gastoNotarial || 0),
-      }
+      const fp = formData.parametros || {}
 
-      // @ts-ignore - Type issue with GraciaTipo null handling
-      const resultadoFinanciero = calcularCredito(paramsCredito)
+      // Formulario actual envía TEA. Si no viene tasa y la cotización era TNA, el motor convierte.
+      const tasaIngresada = Number(fp.tasaIngresada ?? cotizacionActual.tasaIngresada)
+      const tipoTasaCalc = fp.tasaIngresada != null ? "TEA" : (cotizacionActual.tipoTasa ?? "TEA")
+      const capitalizacionCalc =
+        tipoTasaCalc === "TNA" ? cotizacionActual.capitalizacion : null
+
+      // 4. Recalculate financials
+      const resultadoFinanciero = calcularCredito(
+        buildParametrosCredito({
+          tasaIngresada,
+          tipoTasa: tipoTasaCalc,
+          capitalizacion: capitalizacionCalc,
+          precioVehiculo: Number(cotizacionActual.vehiculo.precioLista),
+          cuotaIniMnt: Number(fp.cuotaInicialMonto ?? cotizacionActual.cuotaIniMnt),
+          plazoMeses: Number(fp.plazoMeses ?? cotizacionActual.plazoMeses),
+          fecDesembolso: cotizacionActual.fecDesembolso,
+          fec1eraCuota: fp.fecPrimeraCuota ?? cotizacionActual.fec1eraCuota,
+          graciaFlag: cotizacionActual.graciaFlag,
+          graciaTipo: (cotizacionActual.graciaTipo as "TOTAL" | "PARCIAL" | undefined) ?? undefined,
+          graciaMeses: Number(fp.periodoGracia ?? cotizacionActual.graciaMeses ?? 0),
+          graciaTotalMeses: Number(fp.graciaTotalMeses ?? cotizacionActual.graciaTotalMeses ?? 0) || undefined,
+          graciaParcialMeses: Number(fp.graciaParcialMeses ?? cotizacionActual.graciaParcialMeses ?? 0) || undefined,
+          residualFlag: cotizacionActual.residualFlag,
+          residualMonto: Number(fp.valorResidual ?? cotizacionActual.residualMonto ?? 0),
+          pctCuotaFinal: fp.pctCuotaFinal != null ? Number(fp.pctCuotaFinal) : (cotizacionActual.pctCuotaFinal != null ? Number(cotizacionActual.pctCuotaFinal) : undefined),
+          segDesgrav: Number(fp.segDesgravamen ?? cotizacionActual.segDesgrav ?? 0),
+          segVehicular: Number(fp.segVehicular ?? cotizacionActual.segVehicular ?? 0),
+          gastoGps: Number(fp.otrosGastos ?? cotizacionActual.gastoGps ?? 0),
+          gastoNotarial: Number(cotizacionActual.gastoNotarial ?? 0),
+          costeRegistral: Number(fp.costeRegistral ?? cotizacionActual.costeRegistral ?? 0) || undefined,
+          costeTasacion: Number(fp.costeTasacion ?? cotizacionActual.costeTasacion ?? 0) || undefined,
+          comisionEstudio: Number(fp.comisionEstudio ?? cotizacionActual.comisionEstudio ?? 0) || undefined,
+          comisionActivacion: Number(fp.comisionActivacion ?? cotizacionActual.comisionActivacion ?? 0) || undefined,
+          portesPer: Number(fp.portesPer ?? cotizacionActual.portesPer ?? 0) || undefined,
+          gasAdmPer: Number(fp.gasAdmPer ?? cotizacionActual.gasAdmPer ?? 0) || undefined,
+          pctSegRie: Number(fp.pctSegRie ?? cotizacionActual.pctSegRie ?? 0) || undefined,
+          cokAnual: Number(fp.cokAnual ?? cotizacionActual.cokAnual ?? 0) || undefined,
+        })
+      )
 
       // 5. Create new version
       const nuevaCotizacion = await tx.cotizacion.create({
@@ -98,26 +119,40 @@ export async function POST(
           idUsuario: cotizacionActual.idUsuario,
           version: cotizacionActual.version + 1,
           estado: 'SIMULADA',
-          monedaOp: formData.parametros?.moneda || cotizacionActual.monedaOp,
-          tasaIngresada: formData.parametros?.tasaIngresada || cotizacionActual.tasaIngresada,
+          monedaOp: fp.moneda || cotizacionActual.monedaOp,
+          tipoTasa: "TEA",
+          capitalizacion: null,
+          // Persistir siempre la TEA en % (resultado.tea está en decimal)
+          tasaIngresada: Number((resultadoFinanciero.tea * 100).toFixed(6)),
           tea: resultadoFinanciero.tea,
           tem: resultadoFinanciero.tem,
           precioVeh: cotizacionActual.vehiculo.precioLista,
           cuotaIniPct: cotizacionActual.cuotaIniPct,
-          cuotaIniMnt: formData.parametros?.cuotaInicialMonto || cotizacionActual.cuotaIniMnt,
+          cuotaIniMnt: fp.cuotaInicialMonto ?? cotizacionActual.cuotaIniMnt,
           montoFinanc: resultadoFinanciero.montoFinanciado,
-          plazoMeses: formData.parametros?.plazoMeses || cotizacionActual.plazoMeses,
+          plazoMeses: fp.plazoMeses ?? cotizacionActual.plazoMeses,
           fecDesembolso: cotizacionActual.fecDesembolso,
-          fec1eraCuota: formData.parametros?.fecPrimeraCuota || cotizacionActual.fec1eraCuota,
+          fec1eraCuota: fp.fecPrimeraCuota ?? cotizacionActual.fec1eraCuota,
           graciaFlag: cotizacionActual.graciaFlag,
-        graciaTipo: (cotizacionActual.graciaTipo as any) as "TOTAL" | "PARCIAL" | undefined,
-          graciaMeses: formData.parametros?.periodoGracia || cotizacionActual.graciaMeses,
+          graciaTipo: (cotizacionActual.graciaTipo as any) as "TOTAL" | "PARCIAL" | undefined,
+          graciaMeses: fp.periodoGracia ?? cotizacionActual.graciaMeses,
+          graciaTotalMeses: fp.graciaTotalMeses ?? cotizacionActual.graciaTotalMeses,
+          graciaParcialMeses: fp.graciaParcialMeses ?? cotizacionActual.graciaParcialMeses,
           residualFlag: cotizacionActual.residualFlag,
-          residualMonto: formData.parametros?.valorResidual || cotizacionActual.residualMonto,
-          segDesgrav: formData.parametros?.segDesgravamen || cotizacionActual.segDesgrav,
-          segVehicular: formData.parametros?.segVehicular || cotizacionActual.segVehicular,
-          gastoGps: formData.parametros?.otrosGastos || cotizacionActual.gastoGps,
+          residualMonto: fp.valorResidual ?? cotizacionActual.residualMonto,
+          pctCuotaFinal: fp.pctCuotaFinal ?? cotizacionActual.pctCuotaFinal,
+          segDesgrav: fp.segDesgravamen ?? cotizacionActual.segDesgrav,
+          segVehicular: fp.segVehicular ?? cotizacionActual.segVehicular,
+          gastoGps: fp.otrosGastos ?? cotizacionActual.gastoGps,
           gastoNotarial: cotizacionActual.gastoNotarial,
+          costeRegistral: fp.costeRegistral ?? cotizacionActual.costeRegistral,
+          costeTasacion: fp.costeTasacion ?? cotizacionActual.costeTasacion,
+          comisionEstudio: fp.comisionEstudio ?? cotizacionActual.comisionEstudio,
+          comisionActivacion: fp.comisionActivacion ?? cotizacionActual.comisionActivacion,
+          portesPer: fp.portesPer ?? cotizacionActual.portesPer,
+          gasAdmPer: fp.gasAdmPer ?? cotizacionActual.gasAdmPer,
+          pctSegRie: fp.pctSegRie ?? cotizacionActual.pctSegRie,
+          cokAnual: fp.cokAnual ?? cotizacionActual.cokAnual,
           tcea: resultadoFinanciero.tcea,
           vanDeudor: resultadoFinanciero.vanDeudor,
           tirMensual: resultadoFinanciero.tirMensual,
@@ -129,23 +164,10 @@ export async function POST(
       })
 
       // 6. Create new cuotas
-      const cuotasData = resultadoFinanciero.cronograma.map((cuota: any) => ({
-        idCotizacion: nuevaCotizacion.id,
-        numero: cuota.numero,
-        tipoCuota: cuota.tipoCuota,
-        fecVencimiento: cuota.fechaVencimiento,
-        saldoInicial: cuota.saldoInicial,
-        interes: cuota.interes,
-        amortizacion: cuota.amortizacion,
-        segDesgravamen: cuota.segDesgravamen,
-        segVehicular: cuota.segVehicular,
-        otrosGastos: cuota.otrosGastos,
-        cuotaTotal: cuota.cuotaTotal,
-        saldoFinal: cuota.saldoFinal,
-      }))
-
       await tx.cuota.createMany({
-        data: cuotasData,
+        data: resultadoFinanciero.cronograma.map((cuota) =>
+          mapCuotaToPrisma(cuota, nuevaCotizacion.id)
+        ),
       })
 
       // 7. Create audit log

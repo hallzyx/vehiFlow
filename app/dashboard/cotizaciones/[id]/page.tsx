@@ -121,6 +121,12 @@ export default function CotizacionDetailPage({
                   Vista Académica
                 </button>
               </div>
+              <Link
+                href={`/dashboard/cotizaciones/${cotizacion.id}/hoja-resumen`}
+                className="px-4 py-2 border border-slate-300 text-slate-800 rounded-lg hover:bg-slate-50"
+              >
+                Hoja resumen
+              </Link>
               {(cotizacion.estado === 'SIMULADA' || cotizacion.estado === 'PRESENTADA') && (
                 <Link
                   href={`/dashboard/cotizaciones/${cotizacion.id}/editar`}
@@ -276,13 +282,14 @@ export default function CotizacionDetailPage({
               <thead className="bg-slate-100 text-slate-700">
                 <tr>
                   <th className="text-left p-2">N°</th>
+                  <th className="text-center p-2">PG</th>
                   <th className="text-left p-2">Tipo</th>
                   <th className="text-left p-2">Fecha</th>
                   <th className="text-right p-2">Saldo inicial</th>
                   <th className="text-right p-2">Interés</th>
                   <th className="text-right p-2">Amort.</th>
-                  <th className="text-right p-2">Seguro</th>
-                  <th className="text-right p-2">Gastos</th>
+                  <th className="text-right p-2">Seguros</th>
+                  <th className="text-right p-2">GPS/Portes/Adm</th>
                   <th className="text-right p-2">Cuota total</th>
                   <th className="text-right p-2">Saldo final</th>
                 </tr>
@@ -291,13 +298,14 @@ export default function CotizacionDetailPage({
                 {cotizacion.cuotas.map((q: any) => (
                   <tr key={q.id} className="border-t">
                     <td className="p-2">{q.numero}</td>
+                    <td className="p-2 text-center">{q.pg || "—"}</td>
                     <td className="p-2">{q.tipoCuota}</td>
                     <td className="p-2">{new Date(q.fecVencimiento).toLocaleDateString("es-PE")}</td>
                     <td className="p-2 text-right">{Number(q.saldoInicial).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
                     <td className="p-2 text-right">{(Number(q.segDesgravamen) + Number(q.segVehicular)).toFixed(2)}</td>
-                    <td className="p-2 text-right">{Number(q.otrosGastos).toFixed(2)}</td>
+                    <td className="p-2 text-right">{(Number(q.gps || 0) + Number(q.portes || 0) + Number(q.gasAdm || 0) || Number(q.otrosGastos || 0)).toFixed(2)}</td>
                     <td className="p-2 text-right font-medium">{Number(q.cuotaTotal).toFixed(2)}</td>
                     <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
                   </tr>
@@ -370,12 +378,16 @@ export default function CotizacionDetailPage({
 
         {viewMode === "academica" && cotizacion && (
           <>
-            {/* BLOQUE DATOS */}
             <section className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">DATOS</h2>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+              <h2 className="text-lg font-semibold mb-1">DATOS — Método francés Compra Inteligente (IB)</h2>
+              <p className="text-xs text-slate-500 mb-4">
+                Frecuencia mensual · 30 días · año 360 ·{" "}
+                {cotizacion.tipoTasa || "TEA"}
+                {cotizacion.capitalizacion ? ` / ${cotizacion.capitalizacion}` : ""}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
                 <div className="rounded-lg border p-3 bg-slate-50">
-                  <p className="text-slate-500">Precio de venta</p>
+                  <p className="text-slate-500">Precio de venta (PV)</p>
                   <p className="font-semibold">{Number(cotizacion.precioVeh).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
@@ -383,63 +395,123 @@ export default function CotizacionDetailPage({
                   <p className="font-semibold">{Number(cotizacion.cuotaIniPct).toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">% Cuota final</p>
+                  <p className="font-semibold">
+                    {cotizacion.pctCuotaFinal != null
+                      ? `${(Number(cotizacion.pctCuotaFinal) * 100).toFixed(1)}%`
+                      : cotizacion.residualMonto
+                        ? ((Number(cotizacion.residualMonto) / Number(cotizacion.precioVeh)) * 100).toFixed(1) + "%"
+                        : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
                   <p className="text-slate-500">Préstamo</p>
                   <p className="font-semibold">{Number(cotizacion.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
                   <p className="text-slate-500">Frecuencia</p>
-                  <p className="font-semibold">Semestral</p>
+                  <p className="font-semibold">Mensual (30 días)</p>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
                   <p className="text-slate-500">N° de años</p>
-                  <p className="font-semibold">{(cotizacion.plazoMeses / 12).toFixed(1)}</p>
+                  <p className="font-semibold">{(Number(cotizacion.plazoMeses) / 12).toFixed(1)}</p>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
-                  <p className="text-slate-500">N° de periodos</p>
-                  <p className="font-semibold">{Math.ceil(cotizacion.plazoMeses / 6)}</p>
+                  <p className="text-slate-500">N° cuotas (N)</p>
+                  <p className="font-semibold">{cotizacion.plazoMeses}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">Periodos cronograma</p>
+                  <p className="font-semibold">{cotizacion.cuotas?.length ?? 0}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">TEA</p>
+                  <p className="font-semibold">{Number(cotizacion.tea).toFixed(4)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">TEM</p>
+                  <p className="font-semibold">{Number(cotizacion.tem).toFixed(6)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">TCEA</p>
+                  <p className="font-semibold">{Number(cotizacion.tcea).toFixed(4)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">VAN (COK)</p>
+                  <p className="font-semibold">{Number(cotizacion.vanDeudor).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">TIR mensual</p>
+                  <p className="font-semibold">{Number(cotizacion.tirMensual).toFixed(4)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">TIR / TCEA anual</p>
+                  <p className="font-semibold">{Number(cotizacion.tirAnual).toFixed(4)}%</p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">Cuota final (balón)</p>
+                  <p className="font-semibold">
+                    {cotizacion.residualMonto != null
+                      ? Number(cotizacion.residualMonto).toLocaleString("es-PE", { minimumFractionDigits: 2 })
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3 bg-slate-50">
+                  <p className="text-slate-500">COK anual</p>
+                  <p className="font-semibold">
+                    {cotizacion.cokAnual != null ? `${(Number(cotizacion.cokAnual) * 100).toFixed(2)}%` : "—"}
+                  </p>
                 </div>
               </div>
             </section>
 
-            {/* CRONOGRAMA ACADÉMICO */}
             <section className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">Cronograma de pagos</h2>
+              <h2 className="text-lg font-semibold mb-4">Cronograma dual (cuota regular + cuota final)</h2>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead className="bg-slate-100 text-slate-700">
                     <tr>
                       <th className="text-left p-2">N°</th>
-                      <th className="text-right p-2">TEA</th>
-                      <th className="text-right p-2">TES</th>
-                      <th className="text-right p-2">Saldo Inicial</th>
+                      <th className="text-center p-2">PG</th>
+                      <th className="text-right p-2">SI CF</th>
+                      <th className="text-right p-2">I CF</th>
+                      <th className="text-right p-2">A CF</th>
+                      <th className="text-right p-2">SF CF</th>
+                      <th className="text-right p-2">SI</th>
                       <th className="text-right p-2">Interés</th>
                       <th className="text-right p-2">Cuota</th>
                       <th className="text-right p-2">Amort.</th>
-                      <th className="text-right p-2">Saldo Final</th>
-                      <th className="text-center p-2">Plazo Gracia</th>
+                      <th className="text-right p-2">SegDes</th>
+                      <th className="text-right p-2">SegRie</th>
+                      <th className="text-right p-2">GPS</th>
+                      <th className="text-right p-2">Portes</th>
+                      <th className="text-right p-2">GasAdm</th>
+                      <th className="text-right p-2">SF</th>
+                      <th className="text-right p-2">Flujo</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {cotizacion.cuotas.map((q: any, idx: number) => {
-                      const tea = Number(cotizacion.tea) * 100
-                      const tes = (Math.pow(1 + Number(cotizacion.tea), 6 / 12) - 1) * 100
-                      const cuotaFinanciera = Number(q.interes) + Number(q.amortizacion)
-                      const esGracia =
-                        q.tipoCuota === "GRACIA_TOTAL" || q.tipoCuota === "GRACIA_PARCIAL"
-                      return (
-                        <tr key={q.id} className="border-t">
-                          <td className="p-2">{q.numero}</td>
-                          <td className="p-2 text-right">{tea.toFixed(4)}%</td>
-                          <td className="p-2 text-right">{tes.toFixed(4)}%</td>
-                          <td className="p-2 text-right">{Number(q.saldoInicial).toFixed(2)}</td>
-                          <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
-                          <td className="p-2 text-right font-medium">{cuotaFinanciera.toFixed(2)}</td>
-                          <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
-                          <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
-                          <td className="p-2 text-center">{esGracia ? "S" : "N"}</td>
-                        </tr>
-                      )
-                    })}
+                    {cotizacion.cuotas.map((q: any) => (
+                      <tr key={q.id} className="border-t">
+                        <td className="p-2">{q.numero}</td>
+                        <td className="p-2 text-center font-medium">{q.pg || (q.tipoCuota?.startsWith("GRACIA") ? (q.tipoCuota === "GRACIA_TOTAL" ? "T" : "P") : "S")}</td>
+                        <td className="p-2 text-right">{Number(q.saldoIniCF || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.interesCF || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.amortCF || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.saldoFinCF || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.saldoInicial).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.interes).toFixed(2)}</td>
+                        <td className="p-2 text-right font-medium">{Number(q.cuota ?? (Number(q.interes) + Number(q.amortizacion))).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.amortizacion).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.segDesgravamen).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.segVehicular).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.gps || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.portes || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.gasAdm || 0).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
+                        <td className="p-2 text-right">{Number(q.flujo ?? -Number(q.cuotaTotal)).toFixed(2)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

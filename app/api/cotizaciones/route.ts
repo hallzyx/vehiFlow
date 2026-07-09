@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
+import { buildParametrosCredito, mapCuotaToPrisma } from "@/lib/cotizacion-params"
 import { inferirRolDesdeEmail, obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 import { z } from "zod"
 
@@ -42,6 +43,8 @@ const schemaCrearCotizacion = z.object({
   parametros: z.object({
     monedaOp: z.enum(["PEN", "USD"]),
     tasaIngresada: z.number().positive(),
+    tipoTasa: z.enum(["TEA", "TNA"]).optional(),
+    capitalizacion: z.enum(["DIARIA", "MENSUAL"]).optional().nullable(),
     precioVehiculo: z.number().positive(),
     cuotaIniPct: z.number().min(0).max(99.99),
     cuotaIniMnt: z.number().min(0),
@@ -51,12 +54,23 @@ const schemaCrearCotizacion = z.object({
     graciaFlag: z.boolean(),
     graciaTipo: z.enum(["TOTAL", "PARCIAL"]).optional(),
     graciaMeses: z.number().int().min(0).max(6).optional(),
+    graciaTotalMeses: z.number().int().min(0).max(6).optional(),
+    graciaParcialMeses: z.number().int().min(0).max(6).optional(),
     residualFlag: z.boolean(),
     residualMonto: z.number().optional(),
+    pctCuotaFinal: z.number().min(0).max(1).optional(),
     segDesgrav: z.number().min(0).optional(),
     segVehicular: z.number().min(0).optional(),
     gastoGps: z.number().min(0).optional(),
     gastoNotarial: z.number().min(0).optional(),
+    costeRegistral: z.number().min(0).optional(),
+    costeTasacion: z.number().min(0).optional(),
+    comisionEstudio: z.number().min(0).optional(),
+    comisionActivacion: z.number().min(0).optional(),
+    portesPer: z.number().min(0).optional(),
+    gasAdmPer: z.number().min(0).optional(),
+    pctSegRie: z.number().min(0).optional(),
+    cokAnual: z.number().min(0).optional(),
     motivoEdicion: z.string().optional(),
   }),
 })
@@ -231,23 +245,7 @@ export async function POST(req: NextRequest) {
     }
 
     const p = input.parametros
-    const resultado = calcularCredito({
-      tasaIngresada: p.tasaIngresada,
-      precioVehiculo: p.precioVehiculo,
-      cuotaInicial: p.cuotaIniMnt,
-      plazoMeses: p.plazoMeses,
-      fechaDesembolso: new Date(p.fecDesembolso),
-      fechaPrimeraCuota: new Date(p.fec1eraCuota),
-      graciaFlag: p.graciaFlag,
-      graciaTipo: p.graciaTipo,
-      graciaMeses: p.graciaMeses,
-      residualFlag: p.residualFlag,
-      residualMonto: p.residualMonto,
-      segDesgravamenPct: p.segDesgrav,
-      segVehicularAnual: p.segVehicular,
-      gastoGps: p.gastoGps,
-      gastoNotarial: p.gastoNotarial,
-    })
+    const resultado = calcularCredito(buildParametrosCredito(p))
 
     const cotizacion = await prisma.cotizacion.create({
       data: {
@@ -257,6 +255,8 @@ export async function POST(req: NextRequest) {
         version: 1,
         estado: "SIMULADA",
         monedaOp: p.monedaOp,
+        tipoTasa: "TEA",
+        capitalizacion: null,
         tasaIngresada: p.tasaIngresada,
         tea: resultado.tea,
         tem: resultado.tem,
@@ -270,12 +270,23 @@ export async function POST(req: NextRequest) {
         graciaFlag: p.graciaFlag,
         graciaTipo: p.graciaTipo,
         graciaMeses: p.graciaMeses,
+        graciaTotalMeses: p.graciaTotalMeses,
+        graciaParcialMeses: p.graciaParcialMeses,
         residualFlag: p.residualFlag,
         residualMonto: p.residualMonto,
+        pctCuotaFinal: p.pctCuotaFinal,
         segDesgrav: p.segDesgrav,
         segVehicular: p.segVehicular,
         gastoGps: p.gastoGps,
         gastoNotarial: p.gastoNotarial,
+        costeRegistral: p.costeRegistral,
+        costeTasacion: p.costeTasacion,
+        comisionEstudio: p.comisionEstudio,
+        comisionActivacion: p.comisionActivacion,
+        portesPer: p.portesPer,
+        gasAdmPer: p.gasAdmPer,
+        pctSegRie: p.pctSegRie,
+        cokAnual: p.cokAnual,
         tcea: resultado.tcea,
         vanDeudor: resultado.vanDeudor,
         tirMensual: resultado.tirMensual,
@@ -288,20 +299,7 @@ export async function POST(req: NextRequest) {
 
     if (resultado.cronograma.length > 0) {
       await prisma.cuota.createMany({
-        data: resultado.cronograma.map((q) => ({
-          idCotizacion: cotizacion.id,
-          numero: q.numero,
-          tipoCuota: q.tipoCuota,
-          fecVencimiento: q.fechaVencimiento,
-          saldoInicial: q.saldoInicial,
-          interes: q.interes,
-          amortizacion: q.amortizacion,
-          segDesgravamen: q.segDesgravamen,
-          segVehicular: q.segVehicular,
-          otrosGastos: q.otrosGastos,
-          cuotaTotal: q.cuotaTotal,
-          saldoFinal: q.saldoFinal,
-        })),
+        data: resultado.cronograma.map((q) => mapCuotaToPrisma(q, cotizacion.id)),
       })
     }
 

@@ -57,8 +57,21 @@ export function DashboardShell({ children, userEmail, userRole = "ASESOR" }: Das
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <style jsx global>{`
+        @media print {
+          aside,
+          header.fixed {
+            display: none !important;
+          }
+          main {
+            padding-top: 0 !important;
+            padding-left: 0 !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
       {/* Sidebar desktop */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 bg-white border-r border-slate-200 z-40 flex-col">
+      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 bg-white border-r border-slate-200 z-40 flex-col print:hidden">
         <div className="h-16 px-5 flex items-center border-b border-slate-200">
           <p className="font-bold text-slate-900">Compra Inteligente</p>
         </div>
@@ -97,7 +110,7 @@ export function DashboardShell({ children, userEmail, userRole = "ASESOR" }: Das
       </aside>
 
       {/* Top header fixed */}
-      <header className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white border-b border-slate-200 z-30">
+      <header className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-white border-b border-slate-200 z-30 print:hidden">
         <div className="h-full px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button

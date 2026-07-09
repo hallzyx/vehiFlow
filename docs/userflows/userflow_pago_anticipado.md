@@ -345,7 +345,6 @@ text
 **Acciones sobre los documentos:**
 - Exportar constancia en PDF
 - Exportar nuevo cronograma en PDF
-- Exportar nuevo cronograma en Excel
 - Imprimir ambos documentos (botón conjunto)
 
 **Mensaje de éxito al guardar:**
@@ -407,7 +406,7 @@ text
 [PANTALLA 4: CONSTANCIA Y DOCUMENTOS]
 ├── Resumen final
 ├── Generar: constancia de pago anticipado
-├── Generar: nuevo cronograma (PDF + Excel)
+├── Generar: nuevo cronograma (PDF)
 └── Guardar en BD → versión vN del cronograma
 │
 ▼

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { MarcaModeloFields } from "@/components/vehiculos/marca-modelo-fields"
 
 type Moneda = "PEN" | "USD"
 
@@ -85,8 +86,12 @@ export default function NuevoVehiculoPage() {
         <section className="bg-white rounded-xl border p-6 space-y-4">
           <h2 className="text-lg font-semibold">Identificación del vehículo</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Marca" value={form.marca} onChange={(v) => setForm((p) => ({ ...p, marca: v }))} />
-            <Input label="Modelo" value={form.modelo} onChange={(v) => setForm((p) => ({ ...p, modelo: v }))} />
+            <MarcaModeloFields
+              marca={form.marca}
+              modelo={form.modelo}
+              onMarcaChange={(marca) => setForm((p) => ({ ...p, marca }))}
+              onModeloChange={(modelo) => setForm((p) => ({ ...p, modelo }))}
+            />
             <Input label="Versión / Trim" value={form.version} onChange={(v) => setForm((p) => ({ ...p, version: v }))} />
             <Input label="Año" type="number" value={String(form.anio)} onChange={(v) => setForm((p) => ({ ...p, anio: Number(v) }))} />
             <Input label="Precio lista" type="number" value={form.precioLista} onChange={(v) => setForm((p) => ({ ...p, precioLista: v }))} />

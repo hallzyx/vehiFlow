@@ -7,7 +7,9 @@ export function TransparenciaIndex({ basePath }: { basePath: string }) {
       <header className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-3xl font-bold text-slate-900">Centro de Transparencia e Información Financiera</h1>
-          <p className="text-slate-600 mt-2">Conocé cómo calculamos tu crédito vehicular.</p>
+          <p className="text-slate-600 mt-2">
+            Fórmulas del plan de pagos Compra Inteligente, indicadores SBS (TCEA, VAN, TIR) y marco legal peruano.
+          </p>
         </div>
       </header>
 

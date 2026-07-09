@@ -1,7 +1,9 @@
 Product Overview
 1. Producto
 Nombre de trabajo: VehiFlow / Compra Inteligente Perú.
-Tipo de producto: aplicación web orientada a entidades financieras para originar, simular, registrar y administrar operaciones de crédito vehicular bajo modalidad “Compra Inteligente”, con cronograma de pagos por método francés vencido ordinario, meses de 30 días, soporte en soles y dólares, y tasa efectiva anual (TEA).
+Tipo de producto: aplicación web orientada a entidades financieras para originar, simular, registrar y administrar operaciones de crédito vehicular bajo modalidad “Compra Inteligente”, con cronograma de pagos por método francés vencido ordinario, meses de 30 días, soporte en soles y dólares, y tasas de interés **nominales (TNA) o efectivas (TEA)** según el enunciado SI642.
+
+**Fuente de verdad:** el enunciado PDF del curso (rúbrica SI642). La app se evalúa y se demuestra contra ese documento.
 
 El enunciado exige que la solución sea una aplicación web o móvil enfocada desde el punto de vista de la entidad que ofrece el servicio, con acceso mediante login y password, registro en base de datos de clientes y vehículos, y cálculo obligatorio de VAN y TIR del préstamo desde la perspectiva del deudor.
 
@@ -22,7 +24,7 @@ Construir una plataforma de simulación y originación de crédito vehicular que
 La aplicación debe sentirse como un sistema interno bancario-lite: confiable, auditable, explicable y listo para demostrar cumplimiento regulatorio en cada pantalla crítica.
 
 4. Objetivos del producto
-Permitir crear operaciones de crédito vehicular con configuración de moneda, tasa (TEA), plazo, cuota inicial, valor residual y periodos de gracia.
+Permitir crear operaciones de crédito vehicular con configuración de moneda (PEN/USD), tipo de tasa (TEA o TNA con capitalización), plazo, cuota inicial, valor residual y periodos de gracia.
 
 Generar cronogramas de pago bajo sistema francés vencido ordinario y año comercial de 360 días, ya que la SBS dispone que las tasas se expresen en forma efectiva anual considerando un año de 360 días.
 
@@ -167,9 +169,9 @@ CRUD de vehículos.
 
 Simulación de crédito vehicular en PEN y USD.
 
-Soporte para Tasa Efectiva Anual (TEA) directa, sin necesidad de capitalización.
+Soporte de ingreso de tasa: **solo TEA** (indicación docente). El formulario de cotización no ofrece TNA ni capitalización.
 
-Nota: la capitalización no aplica porque la tasa ingresada ya es efectiva anual.
+Motor de plan de pagos Compra Inteligente (método francés): doble cronograma (cuota regular + cuota final/residual), PMT con desgravamen periódico, TCEA desde IRR, VAN del deudor con COK.
 
 Soporte para gracia total y parcial.
 
@@ -177,7 +179,7 @@ Cálculo de cronograma francés vencido ordinario con meses de 30 días.
 
 Cálculo de TCEA.
 
-Cálculo de VAN y TIR del deudor.
+Cálculo de VAN (descontado al COK del deudor) y TIR del deudor.
 
 Hoja resumen imprimible o exportable.
 

@@ -394,7 +394,6 @@ financieras."
 
 - Botón "Recalcular" → regresa a Pantalla 4 con parámetros cargados
 - Botón "Exportar PDF" → genera hoja resumen + cronograma en PDF
-- Botón "Exportar Excel" → cronograma en .xlsx con fórmulas visibles
 - Botón "Continuar al resumen final" → → PANTALLA 6 — Paso 5: Resumen
 
 ---
@@ -522,7 +521,6 @@ acceso cuando el asesor consulta una cotización desde el dashboard.
 **Acciones disponibles:**
 - Editar cotización → regresa al Paso 3 (Parámetros) con datos cargados
 - Exportar PDF (hoja resumen + cronograma)
-- Exportar Excel (cronograma con fórmulas)
 - Nueva versión → crea copia editable manteniendo historial de versiones
 - Archivar → cambia estado a ARCHIVADA
 
@@ -563,7 +561,7 @@ Esto permite defender la trazabilidad operativa en la exposición.
 ├── Tabla completa con desglose por cuota
 ├── Totales por concepto (interés, amort., seguros, gastos)
 ├── VAN deudor + TIR deudor + TCEA
-├── Exportar PDF / Excel
+├── Exportar PDF
 └── ¿Recalcular? → vuelve a Paso 3
 │
 ▼ Continuar

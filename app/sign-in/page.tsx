@@ -111,14 +111,18 @@ export default function SignInPage() {
               setSeedMessage("")
               try {
                 const [resSeed, resAuth] = await Promise.all([
-                  fetch("/api/dev/seed", { method: "POST" }),
+                  fetch("/api/dev/seed?force=1", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ force: true }),
+                  }),
                   fetch("/api/dev/setup-demo-auth", { method: "POST" }),
                 ])
                 const dataSeed = await resSeed.json()
                 const dataAuth = await resAuth.json()
                 if (!resSeed.ok) throw new Error(dataSeed.error || "No se pudo ejecutar seed")
                 if (!resAuth.ok) throw new Error(dataAuth.error || "No se pudieron crear cuentas demo")
-                setSeedMessage("Seed sintético ejecutado. Ya podés probar el dashboard por rol.")
+                setSeedMessage(dataSeed.message || "Data demo regenerada. Ya podés probar el dashboard por rol.")
               } catch (e: any) {
                 setSeedMessage(e.message || "Error ejecutando seed")
               } finally {

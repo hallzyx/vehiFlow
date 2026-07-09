@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { HelpTooltip } from "@/components/transparencia/help-tooltip"
+import { ayudaCamposCotizacion } from "@/lib/transparencia-help"
+import { calcularTEA } from "@/lib/motor-financiero"
 
 export const dynamic = "force-dynamic"
 
@@ -26,12 +29,21 @@ export default function EditCotizacionPage({
   const handleRecalculate = async () => {
     setIsRecalculating(true)
     try {
+      const p = formData.parametros || {}
+      const graciaTotalMeses = Number(p.graciaTotalMeses ?? 0)
+      const graciaParcialMeses = Number(p.graciaParcialMeses ?? 0)
+      const parametros = {
+        ...p,
+        graciaFlag: graciaTotalMeses + graciaParcialMeses > 0,
+        graciaTotalMeses,
+        graciaParcialMeses,
+      }
       const response = await fetch(`/api/cotizaciones/${id}/recalcular`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ parametros: formData.parametros }),
+        body: JSON.stringify({ parametros }),
       })
       if (response.ok) {
         const result = await response.json()
@@ -75,62 +87,71 @@ export default function EditCotizacionPage({
   }
 
   useEffect(() => {
-    if (cotizacion) {
-      setFormData({
-        cliente: { ...cotizacion.cliente },
-        vehiculo: { ...cotizacion.vehiculo },
-        parametros: {
-          moneda: cotizacion.moneda,
-          tasaIngresada: cotizacion.tasaIngresada,
-          capitalizacion: cotizacion.capitalizacion,
-          cuotaInicialPct: cotizacion.cuotaInicialPct,
-          cuotaInicialMonto: cotizacion.cuotaInicialMonto,
-          montoFinanc: cotizacion.montoFinanc,
-          plazoMeses: cotizacion.plazoMeses,
-          fecDesembolso: cotizacion.fecDesembolso,
-          fecPrimeraCuota: cotizacion.fecPrimeraCuota,
-          periodoGracia: cotizacion.periodoGracia,
-          valorResidual: cotizacion.valorResidual,
-          segDesgravamen: cotizacion.segDesgravamen,
-          segVehicular: cotizacion.segVehicular,
-          otrosGastos: cotizacion.otrosGastos,
-        }
-      })
-    }
-  const handleFieldChange = (field: string, value: any) => {
-    setFormData((prev: any) => {
-      const newData = { ...prev }
-      const keys = field.split('.')
-      let current = newData
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!current[keys[i]]) current[keys[i]] = {}
-        current = current[keys[i]]
-      }
-      current[keys[keys.length - 1]] = value
-      return newData
-    })
-
-    // Check if field changed from original
-    const keys = field.split('.')
-    let original = cotizacion
-    for (let i = 0; i < keys.length - 1; i++) {
-      original = original[keys[i]]
-    }
-    if (original[keys[keys.length - 1]] !== value) {
-      setModifiedFields(prev => new Set([...prev, field]))
-    } else {
-      setModifiedFields(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(field)
-        return newSet
-      })
-    }
-  }
     params.then(({ id: paramId }) => {
       setId(paramId)
       fetchCotizacion(paramId)
     })
   }, [params])
+
+  useEffect(() => {
+    if (!cotizacion) return
+    const rawTipo = cotizacion.tipoTasa ?? "TEA"
+    const rawTasa = Number(cotizacion.tasaIngresada ?? 16.1798)
+    // Si la cotización vieja guardó TNA, mostrar la TEA equivalente (no el 15 nominal).
+    let tasaTeaPct = rawTasa
+    if (rawTipo === "TNA") {
+      try {
+        tasaTeaPct =
+          calcularTEA(rawTasa, "TNA", cotizacion.capitalizacion === "MENSUAL" ? "MENSUAL" : "DIARIA") *
+          100
+      } catch {
+        // Fallback: tea en BD suele estar en decimal
+        const teaStored = Number(cotizacion.tea)
+        tasaTeaPct = teaStored > 0 && teaStored < 2 ? teaStored * 100 : rawTasa
+      }
+    }
+
+    setFormData({
+      cliente: { ...cotizacion.cliente },
+      vehiculo: { ...cotizacion.vehiculo },
+      parametros: {
+        monedaOp: cotizacion.monedaOp ?? cotizacion.moneda ?? "PEN",
+        tipoTasa: "TEA",
+        capitalizacion: null,
+        tasaIngresada: Number(tasaTeaPct.toFixed(6)),
+        precioVehiculo: Number(cotizacion.precioVehiculo ?? cotizacion.vehiculo?.precioLista ?? 0),
+        cuotaIniPct: Number(cotizacion.cuotaIniPct ?? cotizacion.cuotaInicialPct ?? 20),
+        cuotaIniMnt: Number(cotizacion.cuotaIniMnt ?? cotizacion.cuotaInicialMonto ?? 0),
+        plazoMeses: Number(cotizacion.plazoMeses ?? 36),
+        fecDesembolso: cotizacion.fecDesembolso
+          ? new Date(cotizacion.fecDesembolso).toISOString().slice(0, 10)
+          : "",
+        fec1eraCuota: (cotizacion.fec1eraCuota ?? cotizacion.fecPrimeraCuota)
+          ? new Date(cotizacion.fec1eraCuota ?? cotizacion.fecPrimeraCuota).toISOString().slice(0, 10)
+          : "",
+        graciaFlag: Boolean(cotizacion.graciaFlag),
+        graciaTipo: cotizacion.graciaTipo ?? "PARCIAL",
+        graciaMeses: Number(cotizacion.graciaMeses ?? 0),
+        graciaTotalMeses: Number(cotizacion.graciaTotalMeses ?? 0),
+        graciaParcialMeses: Number(cotizacion.graciaParcialMeses ?? 0),
+        residualFlag: cotizacion.residualFlag ?? true,
+        pctCuotaFinal: Number(cotizacion.pctCuotaFinal ?? 0.4),
+        residualMonto: Number(cotizacion.residualMonto ?? cotizacion.valorResidual ?? 0),
+        segDesgrav: Number(cotizacion.segDesgrav ?? cotizacion.segDesgravamen ?? 0.00049),
+        pctSegRie: Number(cotizacion.pctSegRie ?? 0.003),
+        segVehicular: Number(cotizacion.segVehicular ?? 0),
+        gastoGps: Number(cotizacion.gastoGps ?? 20),
+        portesPer: Number(cotizacion.portesPer ?? 3.5),
+        gasAdmPer: Number(cotizacion.gasAdmPer ?? 3.5),
+        gastoNotarial: Number(cotizacion.gastoNotarial ?? 100),
+        costeRegistral: Number(cotizacion.costeRegistral ?? 75),
+        costeTasacion: Number(cotizacion.costeTasacion ?? 0),
+        comisionEstudio: Number(cotizacion.comisionEstudio ?? 0),
+        comisionActivacion: Number(cotizacion.comisionActivacion ?? 0),
+        cokAnual: Number(cotizacion.cokAnual ?? 0.08),
+      },
+    })
+  }, [cotizacion])
 
   const fetchCotizacion = async (cotId: string) => {
     try {
@@ -375,16 +396,25 @@ export default function EditCotizacionPage({
           </TabsContent>
 
           <TabsContent value="parametros" className="mt-6">
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">Parámetros financieros</h2>
+            <div className="bg-white rounded-xl border p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Parámetros financieros</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Configuración desde la entidad. TEA, seguros y gastos son de tarifario/producto; el{" "}
+                  <strong>COK</strong> es la tasa de descuento del VAN del deudor (default mercado 8%; no se pregunta
+                  al cliente).
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="moneda">Moneda</Label>
+                  <Label htmlFor="monedaOp" className="inline-flex items-center gap-1">
+                    Moneda <HelpTooltip {...ayudaCamposCotizacion.monedaOp} />
+                  </Label>
                   <Select
-                    value={formData.parametros?.moneda || ""}
-                    onValueChange={(value) => handleFieldChange("parametros.moneda", value)}
+                    value={formData.parametros?.monedaOp || "PEN"}
+                    onValueChange={(value) => handleFieldChange("parametros.monedaOp", value)}
                   >
-                    <SelectTrigger className={modifiedFields.has("parametros.moneda") ? "border-blue-500" : ""}>
+                    <SelectTrigger className={modifiedFields.has("parametros.monedaOp") ? "border-blue-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -394,26 +424,201 @@ export default function EditCotizacionPage({
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="tasaIngresada">Tasa Efectiva Anual (TEA %)</Label>
+                  <Label htmlFor="tasaIngresada" className="inline-flex items-center gap-1">
+                    TEA % <HelpTooltip {...ayudaCamposCotizacion.tasaIngresada} />
+                  </Label>
                   <Input
                     id="tasaIngresada"
                     type="number"
-                    step="0.01"
-                    value={formData.parametros?.tasaIngresada || ""}
-                    onChange={(e) => handleFieldChange("parametros.tasaIngresada", e.target.value)}
+                    step="0.0001"
+                    value={formData.parametros?.tasaIngresada ?? ""}
+                    onChange={(e) => {
+                      handleFieldChange("parametros.tipoTasa", "TEA")
+                      handleFieldChange("parametros.capitalizacion", null)
+                      handleFieldChange("parametros.tasaIngresada", Number(e.target.value))
+                    }}
                     className={modifiedFields.has("parametros.tasaIngresada") ? "border-blue-500" : ""}
                   />
+                  <p className="text-xs text-slate-500 mt-1">Solo TEA (indicación del curso).</p>
                 </div>
-
                 <div>
-                  <Label htmlFor="plazoMeses">Plazo (meses)</Label>
+                  <Label htmlFor="plazoMeses" className="inline-flex items-center gap-1">
+                    Plazo (meses) <HelpTooltip {...ayudaCamposCotizacion.plazoMeses} />
+                  </Label>
                   <Input
                     id="plazoMeses"
                     type="number"
-                    value={formData.parametros?.plazoMeses || ""}
-                    onChange={(e) => handleFieldChange("parametros.plazoMeses", e.target.value)}
+                    value={formData.parametros?.plazoMeses ?? ""}
+                    onChange={(e) => {
+                      const plazoMeses = Number(e.target.value)
+                      handleFieldChange("parametros.plazoMeses", plazoMeses)
+                      if (plazoMeses === 24) handleFieldChange("parametros.pctCuotaFinal", 0.5)
+                      if (plazoMeses === 36) handleFieldChange("parametros.pctCuotaFinal", 0.4)
+                    }}
                     className={modifiedFields.has("parametros.plazoMeses") ? "border-blue-500" : ""}
                   />
+                </div>
+                <div>
+                  <Label htmlFor="pctCuotaFinal" className="inline-flex items-center gap-1">
+                    % Cuota final <HelpTooltip {...ayudaCamposCotizacion.pctCuotaFinal} />
+                  </Label>
+                  <Input
+                    id="pctCuotaFinal"
+                    type="number"
+                    step="0.01"
+                    value={
+                      formData.parametros?.pctCuotaFinal != null
+                        ? Number((Number(formData.parametros.pctCuotaFinal) * 100).toFixed(4))
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleFieldChange("parametros.pctCuotaFinal", Number(e.target.value) / 100)
+                    }
+                    className={modifiedFields.has("parametros.pctCuotaFinal") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="graciaTotalMeses" className="inline-flex items-center gap-1">
+                    Gracia total (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaTotalMeses} />
+                  </Label>
+                  <Input
+                    id="graciaTotalMeses"
+                    type="number"
+                    value={formData.parametros?.graciaTotalMeses ?? 0}
+                    onChange={(e) => {
+                      const graciaTotalMeses = Number(e.target.value)
+                      handleFieldChange("parametros.graciaTotalMeses", graciaTotalMeses)
+                      const parcial = Number(formData.parametros?.graciaParcialMeses ?? 0)
+                      handleFieldChange("parametros.graciaFlag", graciaTotalMeses + parcial > 0)
+                    }}
+                    className={modifiedFields.has("parametros.graciaTotalMeses") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="graciaParcialMeses" className="inline-flex items-center gap-1">
+                    Gracia parcial (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaParcialMeses} />
+                  </Label>
+                  <Input
+                    id="graciaParcialMeses"
+                    type="number"
+                    value={formData.parametros?.graciaParcialMeses ?? 0}
+                    onChange={(e) => {
+                      const graciaParcialMeses = Number(e.target.value)
+                      handleFieldChange("parametros.graciaParcialMeses", graciaParcialMeses)
+                      const total = Number(formData.parametros?.graciaTotalMeses ?? 0)
+                      handleFieldChange("parametros.graciaFlag", total + graciaParcialMeses > 0)
+                    }}
+                    className={modifiedFields.has("parametros.graciaParcialMeses") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="segDesgrav" className="inline-flex items-center gap-1">
+                    Seg. desgravamen (período) <HelpTooltip {...ayudaCamposCotizacion.segDesgrav} />
+                  </Label>
+                  <Input
+                    id="segDesgrav"
+                    type="number"
+                    step="0.00001"
+                    value={formData.parametros?.segDesgrav ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.segDesgrav", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.segDesgrav") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="pctSegRie" className="inline-flex items-center gap-1">
+                    % Seguro riesgo anual <HelpTooltip {...ayudaCamposCotizacion.pctSegRie} />
+                  </Label>
+                  <Input
+                    id="pctSegRie"
+                    type="number"
+                    step="0.0001"
+                    value={formData.parametros?.pctSegRie ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.pctSegRie", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.pctSegRie") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="gastoGps" className="inline-flex items-center gap-1">
+                    GPS (período) <HelpTooltip {...ayudaCamposCotizacion.gastoGps} />
+                  </Label>
+                  <Input
+                    id="gastoGps"
+                    type="number"
+                    value={formData.parametros?.gastoGps ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.gastoGps", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.gastoGps") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="portesPer" className="inline-flex items-center gap-1">
+                    Portes (período) <HelpTooltip {...ayudaCamposCotizacion.portesPer} />
+                  </Label>
+                  <Input
+                    id="portesPer"
+                    type="number"
+                    value={formData.parametros?.portesPer ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.portesPer", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.portesPer") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="gasAdmPer" className="inline-flex items-center gap-1">
+                    Gastos adm. (período) <HelpTooltip {...ayudaCamposCotizacion.gasAdmPer} />
+                  </Label>
+                  <Input
+                    id="gasAdmPer"
+                    type="number"
+                    value={formData.parametros?.gasAdmPer ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.gasAdmPer", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.gasAdmPer") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="gastoNotarial" className="inline-flex items-center gap-1">
+                    Notarial <HelpTooltip {...ayudaCamposCotizacion.gastoNotarial} />
+                  </Label>
+                  <Input
+                    id="gastoNotarial"
+                    type="number"
+                    value={formData.parametros?.gastoNotarial ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.gastoNotarial", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.gastoNotarial") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="costeRegistral" className="inline-flex items-center gap-1">
+                    Registral <HelpTooltip {...ayudaCamposCotizacion.costeRegistral} />
+                  </Label>
+                  <Input
+                    id="costeRegistral"
+                    type="number"
+                    value={formData.parametros?.costeRegistral ?? ""}
+                    onChange={(e) => handleFieldChange("parametros.costeRegistral", Number(e.target.value))}
+                    className={modifiedFields.has("parametros.costeRegistral") ? "border-blue-500" : ""}
+                  />
+                </div>
+                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                  <Label htmlFor="cokAnual" className="inline-flex items-center gap-1">
+                    COK / tasa de descuento anual (%) — VAN deudor
+                    <HelpTooltip {...ayudaCamposCotizacion.cokAnual} />
+                  </Label>
+                  <Input
+                    id="cokAnual"
+                    type="number"
+                    step="0.01"
+                    value={
+                      formData.parametros?.cokAnual != null
+                        ? Number((Number(formData.parametros.cokAnual) * 100).toFixed(4))
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleFieldChange("parametros.cokAnual", Number(e.target.value) / 100)
+                    }
+                    className={`mt-1 max-w-xs ${modifiedFields.has("parametros.cokAnual") ? "border-blue-500" : ""}`}
+                  />
+                  <p className="text-xs text-slate-600 mt-1">
+                    Default sugerido 8% (costo de oportunidad de mercado). Editable según el perfil de análisis.
+                  </p>
                 </div>
               </div>
               <div className="mt-6">
@@ -492,8 +697,19 @@ export default function EditCotizacionPage({
         <div className="flex gap-4">
           <Link href={`/dashboard/cotizaciones/${id}/editar/confirmar`}>
             <Button onClick={() => {
-              // Store formData and modifiedFields in localStorage for confirmar page
-              localStorage.setItem('editFormData', JSON.stringify(formData))
+              const p = formData.parametros || {}
+              const graciaTotalMeses = Number(p.graciaTotalMeses ?? 0)
+              const graciaParcialMeses = Number(p.graciaParcialMeses ?? 0)
+              const payload = {
+                ...formData,
+                parametros: {
+                  ...p,
+                  graciaFlag: graciaTotalMeses + graciaParcialMeses > 0,
+                  graciaTotalMeses,
+                  graciaParcialMeses,
+                },
+              }
+              localStorage.setItem('editFormData', JSON.stringify(payload))
               localStorage.setItem('editModifiedFields', JSON.stringify(Array.from(modifiedFields)))
             }}>Guardar cambios</Button>
           </Link>

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { calcularCredito, type ParametrosCredito } from "@/lib/motor-financiero"
+import { calcularCredito } from "@/lib/motor-financiero"
+import { buildParametrosCredito } from "@/lib/cotizacion-params"
 
 export async function POST(
   req: NextRequest,
@@ -32,27 +33,47 @@ export async function POST(
       return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 })
     }
 
-    // Merge current data with updated parameters
-    const updatedParams: ParametrosCredito = {
-      tasaIngresada: Number(body.parametros.tasaIngresada || cotizacion.tasaIngresada),
-      precioVehiculo: Number(cotizacion.precioVeh),
-      cuotaInicial: Number(cotizacion.cuotaIniMnt),
-      plazoMeses: body.parametros.plazoMeses || cotizacion.plazoMeses,
-      fechaDesembolso: new Date(cotizacion.fecDesembolso),
-      fechaPrimeraCuota: new Date(body.parametros.fecPrimeraCuota || cotizacion.fec1eraCuota),
-      graciaFlag: cotizacion.graciaFlag,
-      graciaTipo: cotizacion.graciaTipo || undefined,
-      graciaMeses: body.parametros.periodoGracia || cotizacion.graciaMeses || 0,
-      residualFlag: cotizacion.residualFlag,
-      residualMonto: Number(body.parametros.valorResidual || cotizacion.residualMonto || 0),
-      segDesgravamenPct: Number(body.parametros.segDesgravamen || cotizacion.segDesgrav || 0),
-      segVehicularAnual: Number(body.parametros.segVehicular || cotizacion.segVehicular || 0),
-      gastoGps: Number(body.parametros.otrosGastos || cotizacion.gastoGps || 0),
-      gastoNotarial: Number(cotizacion.gastoNotarial || 0),
-    }
+    const bp = body.parametros || {}
 
-    // Recalculate financials
-    const resultado = calcularCredito(updatedParams)
+    // Si el body no trae tasa, respetar tipo guardado (legacy TNA) para no interpretar 15 como TEA.
+    const tasaIngresada = Number(bp.tasaIngresada ?? cotizacion.tasaIngresada)
+    const tipoTasaBody = bp.tipoTasa ?? (bp.tasaIngresada != null ? "TEA" : cotizacion.tipoTasa)
+    const capitalizacionBody =
+      bp.capitalizacion ?? (tipoTasaBody === "TNA" ? cotizacion.capitalizacion : null)
+
+    // Merge current data with updated parameters
+    const resultado = calcularCredito(
+      buildParametrosCredito({
+        tasaIngresada,
+        tipoTasa: tipoTasaBody,
+        capitalizacion: capitalizacionBody,
+        precioVehiculo: Number(cotizacion.precioVeh),
+        cuotaIniMnt: Number(cotizacion.cuotaIniMnt),
+        plazoMeses: Number(bp.plazoMeses ?? cotizacion.plazoMeses),
+        fecDesembolso: cotizacion.fecDesembolso,
+        fec1eraCuota: bp.fecPrimeraCuota ?? cotizacion.fec1eraCuota,
+        graciaFlag: cotizacion.graciaFlag,
+        graciaTipo: (cotizacion.graciaTipo as "TOTAL" | "PARCIAL" | undefined) ?? undefined,
+        graciaMeses: Number(bp.periodoGracia ?? cotizacion.graciaMeses ?? 0),
+        graciaTotalMeses: Number(bp.graciaTotalMeses ?? cotizacion.graciaTotalMeses ?? 0) || undefined,
+        graciaParcialMeses: Number(bp.graciaParcialMeses ?? cotizacion.graciaParcialMeses ?? 0) || undefined,
+        residualFlag: cotizacion.residualFlag,
+        residualMonto: Number(bp.valorResidual ?? cotizacion.residualMonto ?? 0),
+        pctCuotaFinal: bp.pctCuotaFinal != null ? Number(bp.pctCuotaFinal) : (cotizacion.pctCuotaFinal != null ? Number(cotizacion.pctCuotaFinal) : undefined),
+        segDesgrav: Number(bp.segDesgravamen ?? cotizacion.segDesgrav ?? 0),
+        segVehicular: Number(bp.segVehicular ?? cotizacion.segVehicular ?? 0),
+        gastoGps: Number(bp.otrosGastos ?? cotizacion.gastoGps ?? 0),
+        gastoNotarial: Number(cotizacion.gastoNotarial ?? 0),
+        costeRegistral: Number(bp.costeRegistral ?? cotizacion.costeRegistral ?? 0) || undefined,
+        costeTasacion: Number(bp.costeTasacion ?? cotizacion.costeTasacion ?? 0) || undefined,
+        comisionEstudio: Number(bp.comisionEstudio ?? cotizacion.comisionEstudio ?? 0) || undefined,
+        comisionActivacion: Number(bp.comisionActivacion ?? cotizacion.comisionActivacion ?? 0) || undefined,
+        portesPer: Number(bp.portesPer ?? cotizacion.portesPer ?? 0) || undefined,
+        gasAdmPer: Number(bp.gasAdmPer ?? cotizacion.gasAdmPer ?? 0) || undefined,
+        pctSegRie: Number(bp.pctSegRie ?? cotizacion.pctSegRie ?? 0) || undefined,
+        cokAnual: Number(bp.cokAnual ?? cotizacion.cokAnual ?? 0) || undefined,
+      })
+    )
 
     // Return new calculations
     return NextResponse.json({

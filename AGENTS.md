@@ -9,7 +9,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 1) Propósito
 Este archivo define cómo debe trabajar cualquier agente dentro del repo.
-La fuente de verdad es la documentación en `docs/`.
+La documentación operativa está en `docs/`. Ante conflicto de cálculo o
+parámetros del producto, prevalece el enunciado SI642 (PDF) — ver §3.
 
 ---
 
@@ -37,6 +38,13 @@ Define comportamiento UX y flujos operativos (crear cotización, editar, backoff
 ---
 
 ## 3) Orden de prioridad cuando hay dudas o conflicto
+
+**Máxima fuente de verdad (prioridad absoluta):**
+1. **Enunciado SI642 (PDF del curso)** — requisitos funcionales, rúbrica y alcance del trabajo. **Prevalece sobre todo lo demás.**
+2. Documentación interna `docs/` — se alinea al enunciado.
+3. Normativa SBS/BCRP aplicable al producto (transparencia, TCEA, cargos permitidos).
+
+Orden interno de `docs/` (cuando no hay conflicto con el enunciado PDF):
 1. **Normativa y compliance:** [docs/laws.md](docs/laws.md)
 2. **Reglas del producto:** [docs/product.md](docs/product.md)
 3. **Lógica matemática/financiera:** [docs/algorithms.md](docs/algorithms.md)
@@ -44,7 +52,7 @@ Define comportamiento UX y flujos operativos (crear cotización, editar, backoff
 5. **Flujos de UI/UX:** [docs/userflows](docs/userflows)
 6. **Stack y herramientas:** [docs/stack.md](docs/stack.md)
 
-Si persiste conflicto, priorizar siempre cumplimiento SBS y trazabilidad auditable.
+Si hay duda, priorizar cumplimiento del enunciado + trazabilidad auditable + transparencia SBS.
 
 ---
 

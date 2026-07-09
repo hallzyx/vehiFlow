@@ -1,15 +1,29 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { ensureDemoUsers, seedSyntheticOperationsIfNeeded } from "@/lib/demo-seed"
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    await ensureDemoUsers()
-    await seedSyntheticOperationsIfNeeded()
+    const url = new URL(req.url)
+    let force = url.searchParams.get("force") === "1" || url.searchParams.get("force") === "true"
+    try {
+      const body = await req.json()
+      if (body?.force === true || body?.force === "1") force = true
+    } catch {
+      // body vacío o no JSON — ok
+    }
 
+    await ensureDemoUsers()
+    await seedSyntheticOperationsIfNeeded({ force })
+
+    const referenceIso = new Date().toISOString()
     return NextResponse.json({
       success: true,
-      message: "Seed sintético ejecutado correctamente",
+      message: force
+        ? `Data demo regenerada con fechas ancladas a hoy (${new Date().toLocaleDateString("es-PE")})`
+        : `Data demo lista (referencia: ${new Date().toLocaleDateString("es-PE")})`,
+      force,
+      referenceDate: referenceIso,
     })
   } catch (error) {
     console.error("Error ejecutando seed sintético:", error)

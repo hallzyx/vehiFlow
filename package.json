@@ -8,7 +8,10 @@
     "start": "npm run db:push && next start",
     "db:push": "prisma db push",
     "seed": "node scripts/seed.mjs",
-    "lint": "eslint"
+    "seed:force": "node scripts/seed.mjs --force",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -18,6 +21,7 @@
     "better-auth": "^1.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "katex": "^0.17.0",
     "lucide-react": "^1.8.0",
     "mysql2": "^3.21.0",
     "next": "16.2.3",
@@ -31,13 +35,16 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

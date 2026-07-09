@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { MarcaModeloFields } from "@/components/vehiculos/marca-modelo-fields"
 
 type Tab = "datos" | "simulacion" | "cotizaciones" | "historial"
 
@@ -169,8 +170,19 @@ export default function VehiculoDetailPage({ params }: { params: Promise<{ id: s
         {tab === "datos" && (
           <section className="bg-white rounded-xl border p-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Marca" editing={editing} value={form.marca || ""} onChange={(v) => setForm((p: any) => ({ ...p, marca: v }))} />
-              <Field label="Modelo" editing={editing} value={form.modelo || ""} onChange={(v) => setForm((p: any) => ({ ...p, modelo: v }))} />
+              {editing ? (
+                <MarcaModeloFields
+                  marca={form.marca || ""}
+                  modelo={form.modelo || ""}
+                  onMarcaChange={(marca) => setForm((p: any) => ({ ...p, marca }))}
+                  onModeloChange={(modelo) => setForm((p: any) => ({ ...p, modelo }))}
+                />
+              ) : (
+                <>
+                  <Field label="Marca" editing={false} value={form.marca || ""} onChange={() => {}} />
+                  <Field label="Modelo" editing={false} value={form.modelo || ""} onChange={() => {}} />
+                </>
+              )}
               <Field label="Versión" editing={editing} value={form.version || ""} onChange={(v) => setForm((p: any) => ({ ...p, version: v }))} />
               <Field label="Año" type="number" editing={editing} value={String(form.anio || "")} onChange={(v) => setForm((p: any) => ({ ...p, anio: Number(v) }))} />
               <Field label="Precio lista" type="number" editing={editing} value={String(form.precioLista || "")} onChange={(v) => setForm((p: any) => ({ ...p, precioLista: Number(v) }))} />

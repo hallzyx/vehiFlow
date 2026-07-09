@@ -4,6 +4,7 @@ import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
+import { buildParametrosCredito } from "@/lib/cotizacion-params"
 import { obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
 
 const vehiculoUpdateSchema = z.object({
@@ -226,21 +227,34 @@ export async function POST(req: NextRequest, { params }: Params) {
     const primera = new Date(hoy)
     primera.setDate(primera.getDate() + 30)
 
-    const resultado = calcularCredito({
-      tasaIngresada,
-      precioVehiculo: precio,
-      cuotaInicial,
-      plazoMeses,
-      fechaDesembolso: hoy,
-      fechaPrimeraCuota: primera,
-      graciaFlag: false,
-      residualFlag: residualMonto > 0,
-      residualMonto,
-      segDesgravamenPct: 0.04,
-      segVehicularAnual: 1200,
-      gastoGps: 0,
-      gastoNotarial: 0,
-    })
+    const resultado = calcularCredito(
+      buildParametrosCredito({
+        tasaIngresada,
+        tipoTasa: payload.tipoTasa,
+        capitalizacion: payload.capitalizacion,
+        precioVehiculo: precio,
+        cuotaIniMnt: cuotaInicial,
+        plazoMeses,
+        fecDesembolso: hoy,
+        fec1eraCuota: primera,
+        graciaFlag: false,
+        residualFlag: residualMonto > 0,
+        residualMonto,
+        pctCuotaFinal: payload.pctCuotaFinal != null ? Number(payload.pctCuotaFinal) : undefined,
+        segDesgrav: 0.04,
+        segVehicular: 1200,
+        gastoGps: 0,
+        gastoNotarial: 0,
+        costeRegistral: payload.costeRegistral != null ? Number(payload.costeRegistral) : undefined,
+        costeTasacion: payload.costeTasacion != null ? Number(payload.costeTasacion) : undefined,
+        comisionEstudio: payload.comisionEstudio != null ? Number(payload.comisionEstudio) : undefined,
+        comisionActivacion: payload.comisionActivacion != null ? Number(payload.comisionActivacion) : undefined,
+        portesPer: payload.portesPer != null ? Number(payload.portesPer) : undefined,
+        gasAdmPer: payload.gasAdmPer != null ? Number(payload.gasAdmPer) : undefined,
+        pctSegRie: payload.pctSegRie != null ? Number(payload.pctSegRie) : undefined,
+        cokAnual: payload.cokAnual != null ? Number(payload.cokAnual) : undefined,
+      })
+    )
 
     return NextResponse.json({
       success: true,
