@@ -29,8 +29,8 @@ export const interbankProductoDefaults = {
 
   /** Compra Inteligente: residual / balón */
   residualFlag: true,
-  /** Plan 36 → 40% del PV. Plan 24 → 50%. */
-  pctCuotaFinal: 0.4,
+  /** Plan 36 → 40% del PV. Plan 24 → 50%. Editable en formulario. */
+  pctCuotaFinal: 0.4 as number,
   residualMonto: 0,
 
   /** Seguro desgravamen periódico sobre saldo */
@@ -54,7 +54,7 @@ export const interbankProductoDefaults = {
 
   /** Tasa de descuento del VAN del deudor (default mercado). */
   cokAnual: COK_DEFAULT_MERCADO,
-} as const
+}
 
 /** Defaults de negociación típicos Interbank Compra Inteligente (cliente + producto). */
 export const interbankOperacionDemo = {

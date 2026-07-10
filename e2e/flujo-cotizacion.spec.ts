@@ -40,14 +40,14 @@ test("Registrar cotización completa con valor residual", async ({ page }) => {
   await page.locator("label").filter({ hasText: /^Modelo/ }).locator("select").selectOption("Yaris");
   await fieldByLabel(page, /Versión/).fill("1.5");
   await fieldByLabel(page, /^Año/).fill("2026");
-  await fieldByLabel(page, /Precio lista/).fill("16000");
+  await fieldByLabel(page, /Precio lista/).fill("67290");
   await fieldByLabel(page, /Concesionario/).fill("Toyota del Perú S.A.");
   await page.getByRole("button", { name: "Siguiente" }).click();
 
   // ─── Paso 3: Parámetros (solo TEA) ─────────────────────────────────────────
   await expect(fieldByLabel(page, /Moneda operación/)).toHaveValue("PEN");
   await fieldByLabel(page, /Tasa Efectiva Anual|TEA %/).fill("16.1798");
-  await expect(fieldByLabel(page, /Precio vehículo/)).toHaveValue("16000");
+  await expect(fieldByLabel(page, /Precio vehículo/)).toHaveValue("67290");
   await expect(fieldByLabel(page, /Plazo \(meses\)/)).toHaveValue("36");
 
   const residualCheck = page.getByRole("checkbox", {

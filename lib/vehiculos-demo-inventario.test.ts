@@ -12,13 +12,15 @@ describe("Inventario demo vs selector", () => {
     }
   })
 
-  it("incluye Yaris Plan 36 y Corolla Cross demo Interbank", () => {
-    expect(VEHICULOS_DEMO_INVENTARIO.some((v) => v.marca === "Toyota" && v.modelo === "Yaris" && v.precioLista === 16000)).toBe(
-      true
-    )
+  it("incluye Yaris y Corolla Cross con precios de lista realistas (PEN)", () => {
+    const yaris = VEHICULOS_DEMO_INVENTARIO.find((v) => v.marca === "Toyota" && v.modelo === "Yaris")
+    expect(yaris).toBeTruthy()
+    expect(yaris!.precioLista).toBeGreaterThanOrEqual(50_000)
+    expect(yaris!.pctResidual).toBeCloseTo(0.4, 5)
+
     expect(
       VEHICULOS_DEMO_INVENTARIO.some(
-        (v) => v.marca === "Toyota" && v.modelo === "Corolla Cross" && v.precioLista === 80000
+        (v) => v.marca === "Toyota" && v.modelo === "Corolla Cross" && v.precioLista === 98490
       )
     ).toBe(true)
   })

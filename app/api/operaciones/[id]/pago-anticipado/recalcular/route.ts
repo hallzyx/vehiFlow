@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import {
   analizarPagoExtraordinario,
+  construirComparativa,
   normalizarCuotas,
   recalcularCronogramaPorAnticipado,
   resolverContextoOperacion,
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
 
     const seleccionado = modalidad === "REDUCIR_PLAZO" ? opcionA : opcionB
+    const comparativa = construirComparativa({
+      analisis,
+      contexto,
+      resultado: seleccionado,
+    })
 
     return NextResponse.json({
       success: true,
@@ -146,6 +152,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
         cronograma: seleccionado.cronograma,
       },
+      comparativa,
     })
   } catch (error) {
     console.error("Error recalculando pago anticipado:", error)

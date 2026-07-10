@@ -118,6 +118,14 @@ function PagosAnticipadosContent() {
     }
   }, [selectedOperacionId])
 
+  function invalidarAnalisisPago() {
+    setVerificacion(null)
+    setRecalculo(null)
+    setStep(1)
+    setForm((prev) => ({ ...prev, modalidad: null }))
+    setError("")
+  }
+
   async function verificarPago() {
     if (!selectedOperacionId) return
     setError("")
@@ -206,6 +214,8 @@ function PagosAnticipadosContent() {
       )
       setConstancia(data.constancia)
       setStep(1)
+      setVerificacion(null)
+      setRecalculo(null)
       setForm((prev) => ({
         ...prev,
         montoPago: "",
@@ -353,7 +363,10 @@ function PagosAnticipadosContent() {
                     max={hoyIso}
                     className="w-full border rounded p-2"
                     value={form.fechaPago}
-                    onChange={(e) => setForm((p) => ({ ...p, fechaPago: e.target.value }))}
+                    onChange={(e) => {
+                      setForm((p) => ({ ...p, fechaPago: e.target.value }))
+                      invalidarAnalisisPago()
+                    }}
                   />
                 </label>
                 <label className="space-y-1">
@@ -370,7 +383,10 @@ function PagosAnticipadosContent() {
                     className="w-full border rounded p-2"
                     placeholder="8000"
                     value={form.montoPago}
-                    onChange={(e) => setForm((p) => ({ ...p, montoPago: e.target.value }))}
+                    onChange={(e) => {
+                      setForm((p) => ({ ...p, montoPago: e.target.value }))
+                      invalidarAnalisisPago()
+                    }}
                   />
                 </label>
                 <label className="space-y-1">
@@ -576,6 +592,105 @@ function PagosAnticipadosContent() {
                     </p>
                   </div>
                 </div>
+
+                {recalculo.comparativa && (
+                  <div className="mt-4 overflow-x-auto">
+                    <p className="text-sm font-medium text-slate-800 mb-2">
+                      Comparativa antes vs. después del pago anticipado
+                    </p>
+                    <table className="w-full text-sm border rounded overflow-hidden">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="text-left p-2">Indicador</th>
+                          <th className="text-right p-2">Antes</th>
+                          <th className="text-right p-2">Después</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="p-2">Saldo capital</td>
+                          <td className="p-2 text-right">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.saldoAntes).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="p-2 text-right font-medium">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.saldoDespues).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="p-2">Cuotas restantes</td>
+                          <td className="p-2 text-right">{recalculo.comparativa.cuotasAntes}</td>
+                          <td className="p-2 text-right font-medium">
+                            {recalculo.comparativa.cuotasDespues}
+                          </td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="p-2">Cuota mensual</td>
+                          <td className="p-2 text-right">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.cuotaMensualAntes).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="p-2 text-right font-medium">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.cuotaMensualDespues).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="p-2">Fecha de término</td>
+                          <td className="p-2 text-right">
+                            {new Date(
+                              recalculo.comparativa.fechaTerminoAntes + "T12:00:00"
+                            ).toLocaleDateString("es-PE")}
+                          </td>
+                          <td className="p-2 text-right font-medium">
+                            {new Date(
+                              recalculo.comparativa.fechaTerminoDespues + "T12:00:00"
+                            ).toLocaleDateString("es-PE")}
+                          </td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="p-2">Interés residual (cuota regular)</td>
+                          <td className="p-2 text-right">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.interesResidualAntes).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="p-2 text-right font-medium">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.interesResidualDespues).toLocaleString(
+                              "es-PE",
+                              { minimumFractionDigits: 2 }
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-t bg-emerald-50">
+                          <td className="p-2 font-medium">Ahorro en intereses</td>
+                          <td className="p-2 text-right text-slate-400">—</td>
+                          <td className="p-2 text-right font-semibold text-emerald-800">
+                            {moneda}{" "}
+                            {Number(recalculo.comparativa.ahorroIntereses).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p className="mt-2 text-xs text-slate-500">
+                      El ahorro compara solo intereses de cuota regular (no el interés contable del
+                      valor residual / balón). Penalidad: S/ 0.00.
+                    </p>
+                  </div>
+                )}
 
                 <p className="mt-3 text-xs text-slate-600">
                   Penalidad a registrar: <strong>S/ 0.00</strong>. Al confirmar se guarda el pago, la

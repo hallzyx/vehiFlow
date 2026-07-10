@@ -132,14 +132,38 @@ async function syncDemoVehiculos(asesorId: bigint, options?: { force?: boolean }
   }
 
   const existentes = await prisma.vehiculo.findMany({ orderBy: { id: "asc" } })
-  if (!force && existentes.length > 0) return
+  // Sin force: si ya hay flota, igual alineamos precios/residuales del inventario demo
+  if (!force && existentes.length > 0) {
+    for (const item of VEHICULOS_DEMO_INVENTARIO) {
+      const match = await prisma.vehiculo.findFirst({
+        where: { marca: item.marca, modelo: item.modelo },
+        orderBy: { id: "asc" },
+      })
+      if (!match) continue
+      await prisma.vehiculo.update({
+        where: { id: match.id },
+        data: {
+          version: item.version,
+          anio: item.anio,
+          precioLista: item.precioLista,
+          monedaPrecio: item.monedaPrecio,
+          concesionario: item.concesionario,
+          valResidEst: residualEstimado(item),
+          tipoValResid: "MONTO",
+          tipoVehiculo: item.tipoVehiculo as any,
+          transmision: item.transmision as any,
+          combustible: item.combustible as any,
+        },
+      })
+    }
+    return
+  }
 
   for (const item of VEHICULOS_DEMO_INVENTARIO) {
     const match = await prisma.vehiculo.findFirst({
       where: {
         marca: item.marca,
         modelo: item.modelo,
-        precioLista: item.precioLista,
       },
     })
 
@@ -149,6 +173,7 @@ async function syncDemoVehiculos(asesorId: bigint, options?: { force?: boolean }
         data: {
           version: item.version,
           anio: item.anio,
+          precioLista: item.precioLista,
           monedaPrecio: item.monedaPrecio,
           concesionario: item.concesionario,
           valResidEst: residualEstimado(item),
@@ -248,7 +273,8 @@ type SeedScenario = {
 const SCENARIOS: SeedScenario[] = [
   {
     label: "Plan 36 Compra Inteligente",
-    precio: 16000,
+    // Alineado al Yaris demo (~S/ 65k). El golden PV=16000 queda solo en tests del motor.
+    precio: 67_290,
     cuotaIniPct: 20,
     plazoMeses: 36,
     tipoTasa: "TEA",
@@ -267,7 +293,7 @@ const SCENARIOS: SeedScenario[] = [
   },
   {
     label: "Plan 24 Compra Inteligente",
-    precio: 87990,
+    precio: 109_290,
     cuotaIniPct: 20,
     plazoMeses: 24,
     tipoTasa: "TEA",
@@ -441,11 +467,6 @@ export async function seedSyntheticOperationsIfNeeded(options?: { force?: boolea
   for (let i = 0; i < missing; i++) {
     const scenario = scenarioForIndex(i)
     const cliente = clientes[i % clientes.length]
-    // Sesgo a 2–3 modelos “calientes” para que el ranking del mes no quede en 1-1-1-1-1
-    const vehiculo =
-      scenario.precio === 16000
-        ? vehiculos.find((v) => Number(v.precioLista) === 16000) || vehiculos[0]
-        : pickVehiculoPopular(i, vehiculos)
 
     const precio = scenario.precio
     const cuotaIniPct = scenario.cuotaIniPct
@@ -458,6 +479,11 @@ export async function seedSyntheticOperationsIfNeeded(options?: { force?: boolea
     // Primera cuota: +30 días desde desembolso (puede quedar en el futuro respecto a hoy — correcto para cronograma)
     const fec1eraCuota = addDays(fecDesembolso, 30)
     const graciaFlag = scenario.graciaTotalMeses + scenario.graciaParcialMeses > 0
+
+    // Emparejar vehículo por precio del escenario; si no hay match exacto, sesgo comercial
+    const vehiculo =
+      vehiculos.find((v) => Math.abs(Number(v.precioLista) - precio) < 1) ||
+      pickVehiculoPopular(i, vehiculos)
 
     const params = buildParametrosCredito({
       tasaIngresada: scenario.tasaIngresada,

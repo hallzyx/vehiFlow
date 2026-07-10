@@ -7,7 +7,7 @@ import {
   calcularVAN,
   generarCronograma,
   type Cuota,
-} from "@/lib/motor-financiero"
+} from "./motor-financiero"
 
 export type ModalidadAnticipado = "REDUCIR_PLAZO" | "REDUCIR_CUOTA"
 
@@ -290,4 +290,64 @@ export function recalcularCronogramaPorAnticipado(params: {
     ahorroIntereses,
     fechaTermino: cronograma[cronograma.length - 1]?.fechaVencimiento ?? fechaPrimeraCuotaNueva,
   }
+}
+
+export interface ComparativaAnticipado {
+  saldoAntes: number
+  saldoDespues: number
+  cuotasAntes: number
+  cuotasDespues: number
+  cuotaMensualAntes: number
+  cuotaMensualDespues: number
+  fechaTerminoAntes: string
+  fechaTerminoDespues: string
+  interesResidualAntes: number
+  interesResidualDespues: number
+  ahorroIntereses: number
+}
+
+/**
+ * Comparativa antes/después alineada al userflow de pago anticipado.
+ * Intereses = solo cuota regular (sin interesCF del balón).
+ */
+export function construirComparativa(params: {
+  analisis: AnalisisPago
+  contexto: ContextoOperacion
+  resultado: ResultadoRecalculo
+}): ComparativaAnticipado {
+  const { analisis, contexto, resultado } = params
+
+  const ultimaPendiente =
+    contexto.cuotasPendientes[contexto.cuotasPendientes.length - 1] ?? contexto.cuotaReferencia
+
+  const primeraNueva =
+    resultado.cronograma.find((c) => c.tipoCuota !== "RESIDUAL") ?? resultado.cronograma[0]
+
+  const cuotaMensualDespues = round2(
+    Math.abs(primeraNueva?.cuotaTotal ?? resultado.nuevaCuotaBase)
+  )
+
+  const fechaTerminoAntes = toIsoDate(ultimaPendiente.fecVencimiento)
+  const fechaTerminoDespues = toIsoDate(resultado.fechaTermino)
+
+  return {
+    saldoAntes: round2(analisis.saldoAnterior),
+    saldoDespues: round2(analisis.saldoNuevo),
+    cuotasAntes: contexto.cuotasRestantes,
+    cuotasDespues: resultado.nuevoPlazoMeses,
+    cuotaMensualAntes: round2(contexto.cuotaExigible),
+    cuotaMensualDespues,
+    fechaTerminoAntes,
+    fechaTerminoDespues,
+    interesResidualAntes: round2(contexto.interesesRestantes),
+    interesResidualDespues: round2(resultado.totalIntereses),
+    ahorroIntereses: round2(resultado.ahorroIntereses),
+  }
+}
+
+function toIsoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
