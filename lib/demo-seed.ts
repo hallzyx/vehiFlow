@@ -42,9 +42,24 @@ function clampToReference(date: Date, reference: Date) {
   return date > reference ? new Date(reference) : date
 }
 
+/**
+ * Distribución sesgada de meses (ciclo de 24 = targetCotizacionesAsesor).
+ * Evita conteos iguales entre mes actual y mes anterior para que
+ * "Variación mensual" no quede en 0% y parezca un KPI roto.
+ * Mes 0 (actual): 5 | Mes 1 (anterior): 4 → variación ≈ +25%
+ */
+const MONTH_OFFSET_CYCLE = [
+  0, 0, 0, 0, 0, // actual
+  1, 1, 1, 1, // anterior
+  2, 2, 2, 2, 2, // -2
+  3, 3, 3, 3, // -3
+  4, 4, 4, // -4
+  5, 5, 5, // -5
+] as const
+
 /** Fechas de creación repartidas en los últimos 6 meses respecto a `reference` (now). */
 function buildCreatedAt(index: number, reference: Date) {
-  const monthOffset = index % 6
+  const monthOffset = MONTH_OFFSET_CYCLE[index % MONTH_OFFSET_CYCLE.length]
   const base = subMonths(reference, monthOffset)
   const isCurrentMonth = monthOffset === 0
   const maxDay = isCurrentMonth ? Math.max(1, reference.getDate()) : 26
@@ -366,6 +381,22 @@ function scenarioForIndex(i: number): SeedScenario {
   }
 }
 
+/**
+ * Asigna vehículos con sesgo comercial: ~40% al #1, ~30% al #2, ~20% al #3,
+ * resto repartido. Así "Vehículos más cotizados" del mes muestra un top real
+ * (p. ej. 3 / 2 / 1) en lugar de cinco empates en 1.
+ */
+function pickVehiculoPopular<T>(index: number, vehiculos: T[]): T {
+  const n = vehiculos.length
+  if (n === 0) throw new Error("Sin vehículos para seed")
+  if (n === 1) return vehiculos[0]
+  const slot = index % 10
+  if (slot < 4) return vehiculos[0]
+  if (slot < 7) return vehiculos[1]
+  if (slot < 9) return vehiculos[Math.min(2, n - 1)]
+  return vehiculos[index % n]
+}
+
 export async function seedSyntheticOperationsIfNeeded(options?: { force?: boolean }) {
   const reference = endOfDay(seedNow())
   const force = options?.force === true
@@ -410,10 +441,11 @@ export async function seedSyntheticOperationsIfNeeded(options?: { force?: boolea
   for (let i = 0; i < missing; i++) {
     const scenario = scenarioForIndex(i)
     const cliente = clientes[i % clientes.length]
+    // Sesgo a 2–3 modelos “calientes” para que el ranking del mes no quede en 1-1-1-1-1
     const vehiculo =
       scenario.precio === 16000
         ? vehiculos.find((v) => Number(v.precioLista) === 16000) || vehiculos[0]
-        : vehiculos[i % vehiculos.length]
+        : pickVehiculoPopular(i, vehiculos)
 
     const precio = scenario.precio
     const cuotaIniPct = scenario.cuotaIniPct
@@ -505,6 +537,8 @@ export async function seedSyntheticOperationsIfNeeded(options?: { force?: boolea
         costoCredito: resultado.costoCredito,
         motivoEdicion: scenario.label,
         creadoEn: createdAt,
+        // Alinea el reloj de vencimiento (30 días) con la fecha demo de la cotización
+        estadoDesde: createdAt,
       },
     })
 

@@ -55,6 +55,7 @@ export async function GET() {
         cliente: {
           nombres: op.cotizacion.cliente.nombres,
           apPaterno: op.cotizacion.cliente.apPaterno,
+          apMaterno: op.cotizacion.cliente.apMaterno,
           numDocumento: op.cotizacion.cliente.numDocumento,
         },
         vehiculo: {
@@ -114,6 +115,16 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    if (cotizacion.estado !== "PRESENTADA") {
+      return NextResponse.json(
+        {
+          error:
+            "Solo se puede activar una operación desde una cotización en estado PRESENTADA. Primero presentala al cliente.",
+        },
+        { status: 400 }
+      )
+    }
+
     if (cotizacion.cuotas.length === 0) {
       return NextResponse.json(
         { error: "La cotización no tiene cronograma. No se puede activar operación." },
@@ -141,6 +152,7 @@ export async function POST(req: NextRequest) {
         where: { id: cotizacion.id },
         data: {
           estado: "APROBADA",
+          estadoDesde: new Date(),
         },
       })
 

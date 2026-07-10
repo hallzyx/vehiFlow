@@ -134,7 +134,7 @@ export default function ClientesPage() {
                   <tr key={c.id} className="border-t">
                     <td className="p-3">{String(idx + 1).padStart(3, "0")}</td>
                     <td className="p-3">{c.tipoDocumento} {c.numDocumento}</td>
-                    <td className="p-3">{c.nombres} {c.apPaterno}</td>
+                    <td className="p-3">{[c.nombres, c.apPaterno, c.apMaterno].filter(Boolean).join(" ")}</td>
                     <td className="p-3">{c.celular}</td>
                     <td className="p-3">{c.cotizacionesCount}</td>
                     <td className="p-3">{c.estado}</td>

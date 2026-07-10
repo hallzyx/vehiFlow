@@ -290,6 +290,8 @@ model Cotizacion {
   
   // Metadata
   motivoEdicion    String?         @map("motivo_ed") @db.VarChar(200)
+  /** Inicio del estado actual; usado para archivar SIMULADA/PRESENTADA a los 30 días. */
+  estadoDesde      DateTime        @default(now()) @map("estado_desde") @db.Timestamp(0)
   creadoEn         DateTime        @default(now()) @map("creado_en") @db.Timestamp(0)
 
   // Relaciones
@@ -303,6 +305,7 @@ model Cotizacion {
   @@index([idVehiculo])
   @@index([estado])
   @@index([creadoEn])
+  @@index([estado, estadoDesde])
   @@map("cotizaciones")
 }
 

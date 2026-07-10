@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db"
 import { calcularCredito } from "@/lib/motor-financiero"
 import { buildParametrosCredito, mapCuotaToPrisma } from "@/lib/cotizacion-params"
 import { inferirRolDesdeEmail, obtenerUsuarioInternoDesdeSesion } from "@/lib/usuario-interno"
+import { archivarCotizacionesVencidas } from "@/lib/cotizacion-vencimiento"
 import { z } from "zod"
 
 const schemaCrearCotizacion = z.object({
@@ -21,6 +22,7 @@ const schemaCrearCotizacion = z.object({
       celular: z.string().min(9),
       correo: z.string().email(),
       direccion: z.string().min(5),
+      fecNacimiento: z.string().optional().nullable(),
       ingresosMens: z.number().optional(),
       monedaIngres: z.enum(["PEN", "USD"]).optional(),
       situacionLab: z.string().optional(),
@@ -38,6 +40,11 @@ const schemaCrearCotizacion = z.object({
       concesionario: z.string().min(2),
       valResidEst: z.number().optional(),
       tipoValResid: z.enum(["MONTO", "PORCENTAJE"]).optional(),
+      tipoVehiculo: z
+        .enum(["SEDAN", "SUV", "CAMIONETA", "PICKUP", "HATCHBACK", "COUPE", "STATION_WAGON", "VAN", "OTRO"])
+        .optional(),
+      transmision: z.enum(["MANUAL", "AUTOMATICA", "CVT", "DUAL"]).optional(),
+      combustible: z.enum(["GASOLINA", "DIESEL", "HIBRIDO", "ELECTRICO", "GLP"]).optional(),
     })
     .optional(),
   parametros: z.object({
@@ -82,6 +89,9 @@ export async function GET(req: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
+
+    // Lazy: archiva SIMULADA/PRESENTADA con >30 días sin cambio de estado
+    await archivarCotizacionesVencidas()
 
     const rol = inferirRolDesdeEmail(session.user?.email)
 
@@ -209,6 +219,9 @@ export async function POST(req: NextRequest) {
           celular: input.cliente.celular,
           correo: input.cliente.correo,
           direccion: input.cliente.direccion,
+          fecNacimiento: input.cliente.fecNacimiento
+            ? new Date(input.cliente.fecNacimiento)
+            : null,
           ingresosMens: input.cliente.ingresosMens,
           monedaIngres: input.cliente.monedaIngres,
           situacionLab: input.cliente.situacionLab,
@@ -237,6 +250,9 @@ export async function POST(req: NextRequest) {
           concesionario: input.vehiculo.concesionario,
           valResidEst: input.vehiculo.valResidEst,
           tipoValResid: input.vehiculo.tipoValResid,
+          tipoVehiculo: input.vehiculo.tipoVehiculo,
+          transmision: input.vehiculo.transmision,
+          combustible: input.vehiculo.combustible,
           estado: "DISPONIBLE",
           creadoPor: asesorId,
         },

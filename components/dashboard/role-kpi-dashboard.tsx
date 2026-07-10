@@ -158,8 +158,9 @@ export function RoleKpiDashboard({ role, profile, kpis, charts }: Props) {
         </article>
 
         <article className="bg-white rounded-xl border p-4">
-          <h3 className="font-semibold text-slate-900 mb-3">Estado de cotizaciones</h3>
-          <div className="h-72">
+          <h3 className="font-semibold text-slate-900">Estado de cotizaciones</h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">Mes en curso</p>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={charts.estadoCotizaciones} dataKey="value" nameKey="name" outerRadius={95} innerRadius={45}>
@@ -172,6 +173,9 @@ export function RoleKpiDashboard({ role, profile, kpis, charts }: Props) {
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <p className="text-xs text-slate-500 mt-2">
+            {charts.estadoCotizaciones.reduce((sum, e) => sum + e.value, 0)} cotizaciones este mes
+          </p>
         </article>
       </section>
 
@@ -194,7 +198,8 @@ export function RoleKpiDashboard({ role, profile, kpis, charts }: Props) {
         </article>
 
         <article className="bg-white rounded-xl border p-4">
-          <h3 className="font-semibold text-slate-900 mb-3">Vehículos más cotizados</h3>
+          <h3 className="font-semibold text-slate-900">Vehículos más cotizados</h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">Mes en curso</p>
           <ul className="space-y-2">
             {charts.topVehiculos.length === 0 ? (
               <li className="text-sm text-slate-500">No hay datos todavía.</li>

@@ -138,7 +138,10 @@ export async function GET() {
       }),
       prisma.cotizacion.groupBy({
         by: ["estado"],
-        where: baseWhereCotizacion,
+        where: {
+          ...baseWhereCotizacion,
+          creadoEn: { gte: inicioMes, lte: finMes },
+        },
         _count: { estado: true },
       }),
       prisma.cotizacion.groupBy({

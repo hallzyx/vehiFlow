@@ -78,7 +78,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    const cuotaBaseOriginal = round2(contexto.cuotaReferencia.interes + contexto.cuotaReferencia.amortizacion)
+    const cuotaBaseOriginal = round2(
+      Math.abs(contexto.cuotaReferencia.interes) + Math.abs(contexto.cuotaReferencia.amortizacion)
+    )
     const fechaPrimeraCuotaNueva = new Date(fechaPago)
     fechaPrimeraCuotaNueva.setDate(fechaPrimeraCuotaNueva.getDate() + 30)
 
@@ -131,6 +133,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       seleccionado: {
         modalidad: seleccionado.modalidad,
+        nuevaCuotaBase: seleccionado.nuevaCuotaBase,
+        nuevoPlazoMeses: seleccionado.nuevoPlazoMeses,
+        totalCuotas: seleccionado.cronograma.length,
         indicadores: {
           tcea: seleccionado.tcea,
           vanDeudor: seleccionado.vanDeudor,

@@ -36,7 +36,19 @@ export async function POST(
     const bp = body.parametros || {}
 
     // Si el body no trae tasa, respetar tipo guardado (legacy TNA) para no interpretar 15 como TEA.
-    const tasaIngresada = Number(bp.tasaIngresada ?? cotizacion.tasaIngresada)
+    // Defensa: un bug previo de edición guardó tasaIngresada = tea*100 (ej. 1617).
+    const teaStored = Number(cotizacion.tea)
+    const teaStoredPct =
+      Number.isFinite(teaStored) && teaStored > 0
+        ? teaStored < 2
+          ? teaStored * 100
+          : teaStored
+        : 16.1798
+    const tasaRaw = Number(bp.tasaIngresada ?? cotizacion.tasaIngresada ?? teaStoredPct)
+    const tasaIngresada =
+      Number.isFinite(tasaRaw) && tasaRaw > 100 && (bp.tipoTasa ?? cotizacion.tipoTasa) !== "TNA"
+        ? teaStoredPct
+        : tasaRaw
     const tipoTasaBody = bp.tipoTasa ?? (bp.tasaIngresada != null ? "TEA" : cotizacion.tipoTasa)
     const capitalizacionBody =
       bp.capitalizacion ?? (tipoTasaBody === "TNA" ? cotizacion.capitalizacion : null)

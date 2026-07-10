@@ -3,15 +3,35 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HelpTooltip } from "@/components/transparencia/help-tooltip"
 import { ayudaCamposCotizacion } from "@/lib/transparencia-help"
 import { calcularTEA } from "@/lib/motor-financiero"
 
 export const dynamic = "force-dynamic"
+
+type ClienteListaItem = {
+  id: string
+  tipoDocumento: string
+  numDocumento: string
+  nombres: string
+  apPaterno: string
+  apMaterno?: string | null
+  celular?: string
+  correo?: string
+  cotizacionesCount?: number
+}
+
+type VehiculoListaItem = {
+  id: string
+  marca: string
+  modelo: string
+  anio: number
+  precioLista: number
+  monedaPrecio: string
+  concesionario?: string
+  cotizacionesCount?: number
+}
 
 export default function EditCotizacionPage({
   params,
@@ -25,6 +45,20 @@ export default function EditCotizacionPage({
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set())
   const [recalculationResult, setRecalculationResult] = useState<any>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
+
+  const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null)
+  const [selectedVehiculoId, setSelectedVehiculoId] = useState<string | null>(null)
+  const [cambiandoCliente, setCambiandoCliente] = useState(false)
+  const [cambiandoVehiculo, setCambiandoVehiculo] = useState(false)
+  const [clienteSearch, setClienteSearch] = useState("")
+  const [vehiculoSearch, setVehiculoSearch] = useState("")
+  const [clienteResultados, setClienteResultados] = useState<ClienteListaItem[]>([])
+  const [vehiculoResultados, setVehiculoResultados] = useState<VehiculoListaItem[]>([])
+  const [buscandoClientes, setBuscandoClientes] = useState(false)
+  const [buscandoVehiculos, setBuscandoVehiculos] = useState(false)
+
+  const fmtMoney = (n: number) =>
+    n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const handleRecalculate = async () => {
     setIsRecalculating(true)
@@ -73,9 +107,9 @@ export default function EditCotizacionPage({
     const keys = field.split('.')
     let original = cotizacion
     for (let i = 0; i < keys.length - 1; i++) {
-      original = original[keys[i]]
+      original = original?.[keys[i]]
     }
-    if (original[keys[keys.length - 1]] !== value) {
+    if (original?.[keys[keys.length - 1]] !== value) {
       setModifiedFields(prev => new Set([...prev, field]))
     } else {
       setModifiedFields(prev => {
@@ -84,6 +118,76 @@ export default function EditCotizacionPage({
         return newSet
       })
     }
+  }
+
+  const buscarClientes = async (term?: string) => {
+    setBuscandoClientes(true)
+    try {
+      const qs = new URLSearchParams({ estado: "ACTIVO" })
+      const q = (term ?? clienteSearch).trim()
+      if (q) qs.set("search", q)
+      const res = await fetch(`/api/clientes?${qs.toString()}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "No se pudo buscar clientes")
+      setClienteResultados(data.clientes || [])
+    } catch {
+      setClienteResultados([])
+    } finally {
+      setBuscandoClientes(false)
+    }
+  }
+
+  const buscarVehiculos = async (term?: string) => {
+    setBuscandoVehiculos(true)
+    try {
+      const qs = new URLSearchParams({ estado: "DISPONIBLE" })
+      const q = (term ?? vehiculoSearch).trim()
+      if (q) qs.set("search", q)
+      const res = await fetch(`/api/vehiculos?${qs.toString()}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "No se pudo buscar vehículos")
+      setVehiculoResultados(data.vehiculos || [])
+    } catch {
+      setVehiculoResultados([])
+    } finally {
+      setBuscandoVehiculos(false)
+    }
+  }
+
+  const seleccionarCliente = async (clienteId: string) => {
+    const res = await fetch(`/api/clientes/${clienteId}`)
+    const data = await res.json()
+    if (!res.ok) return
+    setSelectedClienteId(clienteId)
+    setFormData((prev: any) => ({ ...prev, cliente: data.cliente, selectedClienteId: Number(clienteId) }))
+    setModifiedFields((prev) => new Set([...prev, "selectedClienteId"]))
+    setCambiandoCliente(false)
+  }
+
+  const seleccionarVehiculo = async (vehiculoId: string) => {
+    const res = await fetch(`/api/vehiculos/${vehiculoId}`)
+    const data = await res.json()
+    if (!res.ok) return
+    const v = data.vehiculo
+    setSelectedVehiculoId(vehiculoId)
+    setFormData((prev: any) => ({
+      ...prev,
+      vehiculo: v,
+      selectedVehiculoId: Number(vehiculoId),
+      parametros: {
+        ...prev.parametros,
+        precioVehiculo: Number(v.precioLista || 0),
+        monedaOp: v.monedaPrecio || prev.parametros?.monedaOp || "PEN",
+        cuotaIniMnt:
+          (Number(v.precioLista || 0) * Number(prev.parametros?.cuotaIniPct ?? 20)) / 100,
+        residualMonto:
+          v.valResidEst != null
+            ? Number(v.valResidEst)
+            : Number(v.precioLista || 0) * Number(prev.parametros?.pctCuotaFinal ?? 0.4),
+      },
+    }))
+    setModifiedFields((prev) => new Set([...prev, "selectedVehiculoId", "parametros.precioVehiculo"]))
+    setCambiandoVehiculo(false)
   }
 
   useEffect(() => {
@@ -97,6 +201,8 @@ export default function EditCotizacionPage({
     if (!cotizacion) return
     const rawTipo = cotizacion.tipoTasa ?? "TEA"
     const rawTasa = Number(cotizacion.tasaIngresada ?? 16.1798)
+    const teaStored = Number(cotizacion.tea)
+    const teaAsPct = teaStored > 0 && teaStored < 2 ? teaStored * 100 : teaStored
     // Si la cotización vieja guardó TNA, mostrar la TEA equivalente (no el 15 nominal).
     let tasaTeaPct = rawTasa
     if (rawTipo === "TNA") {
@@ -105,13 +211,21 @@ export default function EditCotizacionPage({
           calcularTEA(rawTasa, "TNA", cotizacion.capitalizacion === "MENSUAL" ? "MENSUAL" : "DIARIA") *
           100
       } catch {
-        // Fallback: tea en BD suele estar en decimal
-        const teaStored = Number(cotizacion.tea)
-        tasaTeaPct = teaStored > 0 && teaStored < 2 ? teaStored * 100 : rawTasa
+        tasaTeaPct = Number.isFinite(teaAsPct) && teaAsPct > 0 ? teaAsPct : rawTasa
       }
+    } else if (rawTasa > 100 && Number.isFinite(teaAsPct) && teaAsPct > 0 && teaAsPct <= 100) {
+      // Bug legacy: tasaIngresada se guardó como tea*100 (ej. 1617). Usar tea %.
+      tasaTeaPct = teaAsPct
     }
 
+    setSelectedClienteId(String(cotizacion.cliente?.id ?? cotizacion.idCliente))
+    setSelectedVehiculoId(String(cotizacion.vehiculo?.id ?? cotizacion.idVehiculo))
+    setCambiandoCliente(false)
+    setCambiandoVehiculo(false)
+
     setFormData({
+      selectedClienteId: Number(cotizacion.cliente?.id ?? cotizacion.idCliente),
+      selectedVehiculoId: Number(cotizacion.vehiculo?.id ?? cotizacion.idVehiculo),
       cliente: { ...cotizacion.cliente },
       vehiculo: { ...cotizacion.vehiculo },
       parametros: {
@@ -119,7 +233,7 @@ export default function EditCotizacionPage({
         tipoTasa: "TEA",
         capitalizacion: null,
         tasaIngresada: Number(tasaTeaPct.toFixed(6)),
-        precioVehiculo: Number(cotizacion.precioVehiculo ?? cotizacion.vehiculo?.precioLista ?? 0),
+        precioVehiculo: Number(cotizacion.precioVeh ?? cotizacion.precioVehiculo ?? cotizacion.vehiculo?.precioLista ?? 0),
         cuotaIniPct: Number(cotizacion.cuotaIniPct ?? cotizacion.cuotaInicialPct ?? 20),
         cuotaIniMnt: Number(cotizacion.cuotaIniMnt ?? cotizacion.cuotaInicialMonto ?? 0),
         plazoMeses: Number(cotizacion.plazoMeses ?? 36),
@@ -183,6 +297,8 @@ export default function EditCotizacionPage({
   }
 
   const c = cotizacion
+  const cliente = formData.cliente || c.cliente
+  const vehiculo = formData.vehiculo || c.vehiculo
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -192,7 +308,7 @@ export default function EditCotizacionPage({
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Editando: COT-{c.id}</h1>
               <p className="text-sm text-slate-600">
-                Cliente: {c.cliente.nombres} {c.cliente.apPaterno} | Versión actual: v{c.version} | Estado: {c.estado}
+                Cliente: {cliente?.nombres} {cliente?.apPaterno} | Versión actual: v{c.version} | Estado: {c.estado}
               </p>
             </div>
             <div className="flex gap-4">
@@ -221,423 +337,707 @@ export default function EditCotizacionPage({
           </TabsList>
 
           <TabsContent value="cliente" className="mt-6">
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">Datos del cliente</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border p-6 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <Label htmlFor="nombres">Nombres</Label>
-                  <Input
-                    id="nombres"
-                    value={formData.cliente?.nombres || ""}
-                    onChange={(e) => handleFieldChange("cliente.nombres", e.target.value)}
-                    className={modifiedFields.has("cliente.nombres") ? "border-blue-500" : ""}
-                  />
+                  <h2 className="text-lg font-semibold">Cliente de la cotización</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Seleccioná un cliente del directorio. Para editar su ficha, usá la pestaña Clientes.
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="apPaterno">Apellido Paterno</Label>
-                  <Input
-                    id="apPaterno"
-                    value={formData.cliente?.apPaterno || ""}
-                    onChange={(e) => handleFieldChange("cliente.apPaterno", e.target.value)}
-                    className={modifiedFields.has("cliente.apPaterno") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="apMaterno">Apellido Materno</Label>
-                  <Input
-                    id="apMaterno"
-                    value={formData.cliente?.apMaterno || ""}
-                    onChange={(e) => handleFieldChange("cliente.apMaterno", e.target.value)}
-                    className={modifiedFields.has("cliente.apMaterno") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tipoDocumento">Tipo Documento</Label>
-                  <Select
-                    value={formData.cliente?.tipoDocumento || ""}
-                    onValueChange={(value) => handleFieldChange("cliente.tipoDocumento", value)}
+                {!cambiandoCliente && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setCambiandoCliente(true)
+                      void buscarClientes("")
+                    }}
                   >
-                    <SelectTrigger className={modifiedFields.has("cliente.tipoDocumento") ? "border-blue-500" : ""}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DNI">DNI</SelectItem>
-                      <SelectItem value="CE">CE</SelectItem>
-                      <SelectItem value="RUC">RUC</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="numDocumento">Número Documento</Label>
-                  <Input
-                    id="numDocumento"
-                    value={formData.cliente?.numDocumento || ""}
-                    onChange={(e) => handleFieldChange("cliente.numDocumento", e.target.value)}
-                    className={modifiedFields.has("cliente.numDocumento") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="celular">Celular</Label>
-                  <Input
-                    id="celular"
-                    value={formData.cliente?.celular || ""}
-                    onChange={(e) => handleFieldChange("cliente.celular", e.target.value)}
-                    className={modifiedFields.has("cliente.celular") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="correo">Correo</Label>
-                  <Input
-                    id="correo"
-                    type="email"
-                    value={formData.cliente?.correo || ""}
-                    onChange={(e) => handleFieldChange("cliente.correo", e.target.value)}
-                    className={modifiedFields.has("cliente.correo") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="direccion">Dirección</Label>
-                  <Input
-                    id="direccion"
-                    value={formData.cliente?.direccion || ""}
-                    onChange={(e) => handleFieldChange("cliente.direccion", e.target.value)}
-                    className={modifiedFields.has("cliente.direccion") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="ingresosMensuales">Ingresos Mensuales</Label>
-                  <Input
-                    id="ingresosMensuales"
-                    type="number"
-                    value={formData.cliente?.ingresosMensuales || ""}
-                    onChange={(e) => handleFieldChange("cliente.ingresosMensuales", e.target.value)}
-                    className={modifiedFields.has("cliente.ingresosMensuales") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="situacionLaboral">Situación Laboral</Label>
-                  <Select
-                    value={formData.cliente?.situacionLaboral || ""}
-                    onValueChange={(value) => handleFieldChange("cliente.situacionLaboral", value)}
-                  >
-                    <SelectTrigger className={modifiedFields.has("cliente.situacionLaboral") ? "border-blue-500" : ""}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DEPENDIENTE">Dependiente</SelectItem>
-                      <SelectItem value="INDEPENDIENTE">Independiente</SelectItem>
-                      <SelectItem value="JUBILADO">Jubilado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    Cambiar cliente
+                  </Button>
+                )}
               </div>
-              <div className="mt-4">
-                <Button variant="outline">Cambiar cliente</Button>
-              </div>
+
+              {!cambiandoCliente ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Cliente seleccionado
+                  </p>
+                  <p className="text-base font-semibold text-slate-900 mt-1">
+                    {cliente?.nombres} {cliente?.apPaterno} {cliente?.apMaterno}
+                  </p>
+                  <p className="text-sm text-slate-600 mt-0.5">
+                    {cliente?.tipoDocumento} {cliente?.numDocumento}
+                    {cliente?.celular ? ` · ${cliente.celular}` : ""}
+                  </p>
+                  {cliente?.correo ? <p className="text-sm text-slate-500">{cliente.correo}</p> : null}
+                  {selectedClienteId && (
+                    <Link
+                      href={`/dashboard/clientes/${selectedClienteId}`}
+                      className="inline-block mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Ver ficha en Clientes
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="flex-1 border rounded-lg p-2"
+                      placeholder="Buscar por DNI, nombre, correo o celular"
+                      value={clienteSearch}
+                      onChange={(e) => setClienteSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void buscarClientes()
+                        }
+                      }}
+                    />
+                    <Button onClick={() => void buscarClientes()} disabled={buscandoClientes}>
+                      {buscandoClientes ? "Buscando..." : "Buscar"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setCambiandoCliente(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    {buscandoClientes ? (
+                      <p className="p-4 text-sm text-slate-500">Cargando clientes...</p>
+                    ) : clienteResultados.length === 0 ? (
+                      <p className="p-4 text-sm text-slate-600">
+                        No se encontraron clientes.{" "}
+                        <Link href="/dashboard/clientes/nuevo" className="text-blue-600 hover:underline">
+                          Registrar en Clientes
+                        </Link>
+                      </p>
+                    ) : (
+                      <ul className="divide-y max-h-72 overflow-y-auto">
+                        {clienteResultados.map((item) => (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              onClick={() => void seleccionarCliente(item.id)}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between gap-3"
+                            >
+                              <div>
+                                <p className="font-medium text-slate-900">
+                                  {[item.nombres, item.apPaterno, item.apMaterno].filter(Boolean).join(" ")}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {item.tipoDocumento} {item.numDocumento}
+                                </p>
+                              </div>
+                              <span className="text-xs text-slate-500">{item.cotizacionesCount ?? 0} cotiz.</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="vehiculo" className="mt-6">
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">Datos del vehículo</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border p-6 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <Label htmlFor="marca">Marca</Label>
-                  <Input
-                    id="marca"
-                    value={formData.vehiculo?.marca || ""}
-                    onChange={(e) => handleFieldChange("vehiculo.marca", e.target.value)}
-                    className={modifiedFields.has("vehiculo.marca") ? "border-blue-500" : ""}
-                  />
+                  <h2 className="text-lg font-semibold">Vehículo de la cotización</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Seleccioná un vehículo del catálogo. Para editar su ficha, usá la pestaña Vehículos.
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="modelo">Modelo</Label>
-                  <Input
-                    id="modelo"
-                    value={formData.vehiculo?.modelo || ""}
-                    onChange={(e) => handleFieldChange("vehiculo.modelo", e.target.value)}
-                    className={modifiedFields.has("vehiculo.modelo") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="anio">Año</Label>
-                  <Input
-                    id="anio"
-                    type="number"
-                    value={formData.vehiculo?.anio || ""}
-                    onChange={(e) => handleFieldChange("vehiculo.anio", e.target.value)}
-                    className={modifiedFields.has("vehiculo.anio") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="precioLista">Precio de Lista</Label>
-                  <Input
-                    id="precioLista"
-                    type="number"
-                    value={formData.vehiculo?.precioLista || ""}
-                    onChange={(e) => handleFieldChange("vehiculo.precioLista", e.target.value)}
-                    className={modifiedFields.has("vehiculo.precioLista") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="concesionario">Concesionario</Label>
-                  <Input
-                    id="concesionario"
-                    value={formData.vehiculo?.concesionario || ""}
-                    onChange={(e) => handleFieldChange("vehiculo.concesionario", e.target.value)}
-                    className={modifiedFields.has("vehiculo.concesionario") ? "border-blue-500" : ""}
-                  />
-                </div>
+                {!cambiandoVehiculo && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setCambiandoVehiculo(true)
+                      void buscarVehiculos("")
+                    }}
+                  >
+                    Cambiar vehículo
+                  </Button>
+                )}
               </div>
-              <div className="mt-4">
-                <Button variant="outline">Cambiar vehículo</Button>
-              </div>
+
+              {!cambiandoVehiculo ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Vehículo seleccionado
+                  </p>
+                  <p className="text-base font-semibold text-slate-900 mt-1">
+                    {vehiculo?.marca} {vehiculo?.modelo} {vehiculo?.anio}
+                  </p>
+                  <p className="text-sm text-slate-600 mt-0.5">
+                    {vehiculo?.monedaPrecio} {fmtMoney(Number(vehiculo?.precioLista || 0))}
+                    {vehiculo?.concesionario ? ` · ${vehiculo.concesionario}` : ""}
+                  </p>
+                  {selectedVehiculoId && (
+                    <Link
+                      href={`/dashboard/vehiculos/${selectedVehiculoId}`}
+                      className="inline-block mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Ver ficha en Vehículos
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="flex-1 border rounded-lg p-2"
+                      placeholder="Buscar por marca, modelo o concesionario"
+                      value={vehiculoSearch}
+                      onChange={(e) => setVehiculoSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void buscarVehiculos()
+                        }
+                      }}
+                    />
+                    <Button onClick={() => void buscarVehiculos()} disabled={buscandoVehiculos}>
+                      {buscandoVehiculos ? "Buscando..." : "Buscar"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setCambiandoVehiculo(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    {buscandoVehiculos ? (
+                      <p className="p-4 text-sm text-slate-500">Cargando vehículos...</p>
+                    ) : vehiculoResultados.length === 0 ? (
+                      <p className="p-4 text-sm text-slate-600">
+                        No se encontraron vehículos.{" "}
+                        <Link href="/dashboard/vehiculos/nuevo" className="text-blue-600 hover:underline">
+                          Registrar en Vehículos
+                        </Link>
+                      </p>
+                    ) : (
+                      <ul className="divide-y max-h-72 overflow-y-auto">
+                        {vehiculoResultados.map((item) => (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              onClick={() => void seleccionarVehiculo(item.id)}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between gap-3"
+                            >
+                              <div>
+                                <p className="font-medium text-slate-900">
+                                  {item.marca} {item.modelo} {item.anio}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {item.monedaPrecio} {fmtMoney(Number(item.precioLista))}
+                                </p>
+                              </div>
+                              <span className="text-xs text-slate-500">{item.cotizacionesCount ?? 0} cotiz.</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="parametros" className="mt-6">
-            <div className="bg-white rounded-xl border p-6 space-y-4">
+            <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold">Parámetros financieros</h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Configuración desde la entidad. TEA, seguros y gastos son de tarifario/producto; el{" "}
-                  <strong>COK</strong> es la tasa de descuento del VAN del deudor (default mercado 8%; no se pregunta
-                  al cliente).
+                  Vista de la <strong>entidad</strong> (enunciado SI642): el asesor configura la operación.
+                  Agrupamos lo que negocia el cliente, lo que viene del tarifario/producto y el COK solo para el VAN académico.
                 </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="monedaOp" className="inline-flex items-center gap-1">
-                    Moneda <HelpTooltip {...ayudaCamposCotizacion.monedaOp} />
-                  </Label>
-                  <Select
-                    value={formData.parametros?.monedaOp || "PEN"}
-                    onValueChange={(value) => handleFieldChange("parametros.monedaOp", value)}
-                  >
-                    <SelectTrigger className={modifiedFields.has("parametros.monedaOp") ? "border-blue-500" : ""}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PEN">PEN</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="tasaIngresada" className="inline-flex items-center gap-1">
-                    TEA % <HelpTooltip {...ayudaCamposCotizacion.tasaIngresada} />
-                  </Label>
-                  <Input
-                    id="tasaIngresada"
-                    type="number"
-                    step="0.0001"
-                    value={formData.parametros?.tasaIngresada ?? ""}
-                    onChange={(e) => {
-                      handleFieldChange("parametros.tipoTasa", "TEA")
-                      handleFieldChange("parametros.capitalizacion", null)
-                      handleFieldChange("parametros.tasaIngresada", Number(e.target.value))
-                    }}
-                    className={modifiedFields.has("parametros.tasaIngresada") ? "border-blue-500" : ""}
-                  />
-                  <p className="text-xs text-slate-500 mt-1">Solo TEA (indicación del curso).</p>
-                </div>
-                <div>
-                  <Label htmlFor="plazoMeses" className="inline-flex items-center gap-1">
-                    Plazo (meses) <HelpTooltip {...ayudaCamposCotizacion.plazoMeses} />
-                  </Label>
-                  <Input
-                    id="plazoMeses"
-                    type="number"
-                    value={formData.parametros?.plazoMeses ?? ""}
-                    onChange={(e) => {
-                      const plazoMeses = Number(e.target.value)
-                      handleFieldChange("parametros.plazoMeses", plazoMeses)
-                      if (plazoMeses === 24) handleFieldChange("parametros.pctCuotaFinal", 0.5)
-                      if (plazoMeses === 36) handleFieldChange("parametros.pctCuotaFinal", 0.4)
-                    }}
-                    className={modifiedFields.has("parametros.plazoMeses") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pctCuotaFinal" className="inline-flex items-center gap-1">
-                    % Cuota final <HelpTooltip {...ayudaCamposCotizacion.pctCuotaFinal} />
-                  </Label>
-                  <Input
-                    id="pctCuotaFinal"
-                    type="number"
-                    step="0.01"
-                    value={
-                      formData.parametros?.pctCuotaFinal != null
-                        ? Number((Number(formData.parametros.pctCuotaFinal) * 100).toFixed(4))
-                        : ""
-                    }
-                    onChange={(e) =>
-                      handleFieldChange("parametros.pctCuotaFinal", Number(e.target.value) / 100)
-                    }
-                    className={modifiedFields.has("parametros.pctCuotaFinal") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="graciaTotalMeses" className="inline-flex items-center gap-1">
-                    Gracia total (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaTotalMeses} />
-                  </Label>
-                  <Input
-                    id="graciaTotalMeses"
-                    type="number"
-                    value={formData.parametros?.graciaTotalMeses ?? 0}
-                    onChange={(e) => {
-                      const graciaTotalMeses = Number(e.target.value)
-                      handleFieldChange("parametros.graciaTotalMeses", graciaTotalMeses)
-                      const parcial = Number(formData.parametros?.graciaParcialMeses ?? 0)
-                      handleFieldChange("parametros.graciaFlag", graciaTotalMeses + parcial > 0)
-                    }}
-                    className={modifiedFields.has("parametros.graciaTotalMeses") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="graciaParcialMeses" className="inline-flex items-center gap-1">
-                    Gracia parcial (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaParcialMeses} />
-                  </Label>
-                  <Input
-                    id="graciaParcialMeses"
-                    type="number"
-                    value={formData.parametros?.graciaParcialMeses ?? 0}
-                    onChange={(e) => {
-                      const graciaParcialMeses = Number(e.target.value)
-                      handleFieldChange("parametros.graciaParcialMeses", graciaParcialMeses)
-                      const total = Number(formData.parametros?.graciaTotalMeses ?? 0)
-                      handleFieldChange("parametros.graciaFlag", total + graciaParcialMeses > 0)
-                    }}
-                    className={modifiedFields.has("parametros.graciaParcialMeses") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="segDesgrav" className="inline-flex items-center gap-1">
-                    Seg. desgravamen (período) <HelpTooltip {...ayudaCamposCotizacion.segDesgrav} />
-                  </Label>
-                  <Input
-                    id="segDesgrav"
-                    type="number"
-                    step="0.00001"
-                    value={formData.parametros?.segDesgrav ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.segDesgrav", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.segDesgrav") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pctSegRie" className="inline-flex items-center gap-1">
-                    % Seguro riesgo anual <HelpTooltip {...ayudaCamposCotizacion.pctSegRie} />
-                  </Label>
-                  <Input
-                    id="pctSegRie"
-                    type="number"
-                    step="0.0001"
-                    value={formData.parametros?.pctSegRie ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.pctSegRie", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.pctSegRie") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="gastoGps" className="inline-flex items-center gap-1">
-                    GPS (período) <HelpTooltip {...ayudaCamposCotizacion.gastoGps} />
-                  </Label>
-                  <Input
-                    id="gastoGps"
-                    type="number"
-                    value={formData.parametros?.gastoGps ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.gastoGps", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.gastoGps") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="portesPer" className="inline-flex items-center gap-1">
-                    Portes (período) <HelpTooltip {...ayudaCamposCotizacion.portesPer} />
-                  </Label>
-                  <Input
-                    id="portesPer"
-                    type="number"
-                    value={formData.parametros?.portesPer ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.portesPer", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.portesPer") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="gasAdmPer" className="inline-flex items-center gap-1">
-                    Gastos adm. (período) <HelpTooltip {...ayudaCamposCotizacion.gasAdmPer} />
-                  </Label>
-                  <Input
-                    id="gasAdmPer"
-                    type="number"
-                    value={formData.parametros?.gasAdmPer ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.gasAdmPer", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.gasAdmPer") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="gastoNotarial" className="inline-flex items-center gap-1">
-                    Notarial <HelpTooltip {...ayudaCamposCotizacion.gastoNotarial} />
-                  </Label>
-                  <Input
-                    id="gastoNotarial"
-                    type="number"
-                    value={formData.parametros?.gastoNotarial ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.gastoNotarial", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.gastoNotarial") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="costeRegistral" className="inline-flex items-center gap-1">
-                    Registral <HelpTooltip {...ayudaCamposCotizacion.costeRegistral} />
-                  </Label>
-                  <Input
-                    id="costeRegistral"
-                    type="number"
-                    value={formData.parametros?.costeRegistral ?? ""}
-                    onChange={(e) => handleFieldChange("parametros.costeRegistral", Number(e.target.value))}
-                    className={modifiedFields.has("parametros.costeRegistral") ? "border-blue-500" : ""}
-                  />
-                </div>
-                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                  <Label htmlFor="cokAnual" className="inline-flex items-center gap-1">
-                    COK / tasa de descuento anual (%) — VAN deudor
-                    <HelpTooltip {...ayudaCamposCotizacion.cokAnual} />
-                  </Label>
-                  <Input
-                    id="cokAnual"
-                    type="number"
-                    step="0.01"
-                    value={
-                      formData.parametros?.cokAnual != null
-                        ? Number((Number(formData.parametros.cokAnual) * 100).toFixed(4))
-                        : ""
-                    }
-                    onChange={(e) =>
-                      handleFieldChange("parametros.cokAnual", Number(e.target.value) / 100)
-                    }
-                    className={`mt-1 max-w-xs ${modifiedFields.has("parametros.cokAnual") ? "border-blue-500" : ""}`}
-                  />
-                  <p className="text-xs text-slate-600 mt-1">
-                    Default sugerido 8% (costo de oportunidad de mercado). Editable según el perfil de análisis.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-6">
+
+              {(() => {
+                const p = formData.parametros || {}
+                const mod = (field: string) =>
+                  modifiedFields.has(field) ? "border-blue-500" : ""
+                const costosIniciales =
+                  Number(p.gastoNotarial || 0) +
+                  Number(p.costeRegistral || 0) +
+                  Number(p.costeTasacion || 0) +
+                  Number(p.comisionEstudio || 0) +
+                  Number(p.comisionActivacion || 0)
+                const prestamoEstimado = Math.max(
+                  0,
+                  Number(p.precioVehiculo || 0) - Number(p.cuotaIniMnt || 0) + costosIniciales
+                )
+                let teaDecimal: number | null = null
+                try {
+                  teaDecimal = calcularTEA(Number(p.tasaIngresada || 0), "TEA", null)
+                } catch {
+                  teaDecimal = null
+                }
+
+                return (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">A. Datos de la operación (cliente / negociación)</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Lo que el cliente elige o acuerda con el asesor: moneda, precio, inicial, plazo, fechas y gracia.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Moneda operación <HelpTooltip {...ayudaCamposCotizacion.monedaOp} />
+                          </span>
+                          <select
+                            className={`w-full border rounded p-2 ${mod("parametros.monedaOp")}`}
+                            value={p.monedaOp || "PEN"}
+                            onChange={(e) => handleFieldChange("parametros.monedaOp", e.target.value)}
+                          >
+                            <option value="PEN">PEN</option>
+                            <option value="USD">USD</option>
+                          </select>
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Precio vehículo <HelpTooltip {...ayudaCamposCotizacion.precioVehiculo} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 ${mod("parametros.precioVehiculo")}`}
+                            value={p.precioVehiculo ?? ""}
+                            onChange={(e) => {
+                              const precioVehiculo = Number(e.target.value)
+                              handleFieldChange("parametros.precioVehiculo", precioVehiculo)
+                              handleFieldChange(
+                                "parametros.cuotaIniMnt",
+                                (precioVehiculo * Number(p.cuotaIniPct ?? 20)) / 100
+                              )
+                            }}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Cuota inicial (%) <HelpTooltip {...ayudaCamposCotizacion.cuotaInicial} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full border rounded p-2 ${mod("parametros.cuotaIniPct")}`}
+                            value={p.cuotaIniPct ?? ""}
+                            onChange={(e) => {
+                              const pct = Number(e.target.value)
+                              handleFieldChange("parametros.cuotaIniPct", pct)
+                              handleFieldChange(
+                                "parametros.cuotaIniMnt",
+                                (Number(p.precioVehiculo || 0) * pct) / 100
+                              )
+                            }}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Cuota inicial (monto) <HelpTooltip {...ayudaCamposCotizacion.cuotaInicial} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 ${mod("parametros.cuotaIniMnt")}`}
+                            value={p.cuotaIniMnt ?? ""}
+                            onChange={(e) => {
+                              const cuotaIniMnt = Number(e.target.value)
+                              const precio = Number(p.precioVehiculo || 0)
+                              handleFieldChange("parametros.cuotaIniMnt", cuotaIniMnt)
+                              handleFieldChange(
+                                "parametros.cuotaIniPct",
+                                precio > 0
+                                  ? Math.round(((cuotaIniMnt / precio) * 100) * 10000) / 10000
+                                  : 0
+                              )
+                            }}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Plazo (meses) <HelpTooltip {...ayudaCamposCotizacion.plazoMeses} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 ${mod("parametros.plazoMeses")}`}
+                            value={p.plazoMeses ?? ""}
+                            onChange={(e) => {
+                              const plazoMeses = Number(e.target.value)
+                              handleFieldChange("parametros.plazoMeses", plazoMeses)
+                              if (plazoMeses === 24) handleFieldChange("parametros.pctCuotaFinal", 0.5)
+                              if (plazoMeses === 36) handleFieldChange("parametros.pctCuotaFinal", 0.4)
+                            }}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Fecha desembolso <HelpTooltip {...ayudaCamposCotizacion.fecDesembolso} />
+                          </span>
+                          <input
+                            type="date"
+                            className={`w-full border rounded p-2 ${mod("parametros.fecDesembolso")}`}
+                            value={p.fecDesembolso || ""}
+                            onChange={(e) => handleFieldChange("parametros.fecDesembolso", e.target.value)}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Fecha 1ra cuota <HelpTooltip {...ayudaCamposCotizacion.fec1eraCuota} />
+                          </span>
+                          <input
+                            type="date"
+                            className={`w-full border rounded p-2 ${mod("parametros.fec1eraCuota")}`}
+                            value={p.fec1eraCuota || ""}
+                            onChange={(e) => handleFieldChange("parametros.fec1eraCuota", e.target.value)}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Gracia total (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaTotalMeses} />
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            className={`w-full border rounded p-2 ${mod("parametros.graciaTotalMeses")}`}
+                            value={p.graciaTotalMeses ?? 0}
+                            onChange={(e) => {
+                              const graciaTotalMeses = Number(e.target.value)
+                              const parcial = Number(p.graciaParcialMeses ?? 0)
+                              handleFieldChange("parametros.graciaTotalMeses", graciaTotalMeses)
+                              handleFieldChange("parametros.graciaFlag", graciaTotalMeses + parcial > 0)
+                              handleFieldChange(
+                                "parametros.graciaTipo",
+                                graciaTotalMeses > 0 ? "TOTAL" : "PARCIAL"
+                              )
+                              handleFieldChange(
+                                "parametros.graciaMeses",
+                                graciaTotalMeses > 0 ? graciaTotalMeses : parcial
+                              )
+                            }}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Gracia parcial (meses) <HelpTooltip {...ayudaCamposCotizacion.graciaParcialMeses} />
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            className={`w-full border rounded p-2 ${mod("parametros.graciaParcialMeses")}`}
+                            value={p.graciaParcialMeses ?? 0}
+                            onChange={(e) => {
+                              const graciaParcialMeses = Number(e.target.value)
+                              const total = Number(p.graciaTotalMeses ?? 0)
+                              handleFieldChange("parametros.graciaParcialMeses", graciaParcialMeses)
+                              handleFieldChange("parametros.graciaFlag", total + graciaParcialMeses > 0)
+                              handleFieldChange(
+                                "parametros.graciaTipo",
+                                total > 0 ? "TOTAL" : "PARCIAL"
+                              )
+                              handleFieldChange(
+                                "parametros.graciaMeses",
+                                total > 0 ? total : graciaParcialMeses
+                              )
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-4">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">B. Parámetros del producto / tarifario (Interbank)</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Valores de producto Compra Inteligente Interbank (inicial ≥20%, balón 40%/50%, seguros y gastos del
+                          plan). En producción los carga el sistema; aquí el asesor los puede ajustar para la simulación.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Tasa Efectiva Anual (TEA %) <HelpTooltip {...ayudaCamposCotizacion.tasaIngresada} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.0001"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.tasaIngresada")}`}
+                            value={p.tasaIngresada ?? ""}
+                            onChange={(e) => {
+                              handleFieldChange("parametros.tipoTasa", "TEA")
+                              handleFieldChange("parametros.capitalizacion", null)
+                              handleFieldChange("parametros.tasaIngresada", Number(e.target.value))
+                            }}
+                          />
+                          <p className="text-xs text-slate-500">
+                            Indicación del curso: solo TEA. TEM = (1+TEA)^(30/360)−1
+                            {teaDecimal != null
+                              ? ` · TEM ≈ ${(Math.pow(1 + teaDecimal, 1 / 12) * 100 - 100).toFixed(4)}%`
+                              : ""}
+                            .
+                          </p>
+                        </label>
+
+                        <label className="flex items-center gap-2 pt-6">
+                          <input
+                            type="checkbox"
+                            checked={p.residualFlag ?? true}
+                            onChange={(e) => handleFieldChange("parametros.residualFlag", e.target.checked)}
+                          />
+                          <span className="text-sm flex items-center">
+                            Incluir valor residual (Compra Inteligente)
+                            <HelpTooltip {...ayudaCamposCotizacion.pctCuotaFinal} />
+                          </span>
+                        </label>
+
+                        {(p.residualFlag ?? true) && (
+                          <>
+                            <label className="space-y-1">
+                              <span className="text-sm flex items-center">
+                                % Cuota final <HelpTooltip {...ayudaCamposCotizacion.pctCuotaFinal} />
+                              </span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                max={100}
+                                className={`w-full border rounded p-2 bg-white ${mod("parametros.pctCuotaFinal")}`}
+                                value={
+                                  p.pctCuotaFinal != null
+                                    ? Number((Number(p.pctCuotaFinal) * 100).toFixed(4))
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  handleFieldChange("parametros.pctCuotaFinal", Number(e.target.value) / 100)
+                                }
+                              />
+                            </label>
+                            <label className="space-y-1">
+                              <span className="text-sm flex items-center">
+                                Monto residual (0 = calcular con %)
+                                <HelpTooltip {...ayudaCamposCotizacion.residualMonto} />
+                              </span>
+                              <input
+                                type="number"
+                                className={`w-full border rounded p-2 bg-white ${mod("parametros.residualMonto")}`}
+                                value={p.residualMonto ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange("parametros.residualMonto", Number(e.target.value))
+                                }
+                              />
+                            </label>
+                          </>
+                        )}
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Seguro desgravamen (período) <HelpTooltip {...ayudaCamposCotizacion.segDesgrav} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.00001"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.segDesgrav")}`}
+                            value={p.segDesgrav ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.segDesgrav", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            % Seguro riesgo anual <HelpTooltip {...ayudaCamposCotizacion.pctSegRie} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.0001"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.pctSegRie")}`}
+                            value={p.pctSegRie ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.pctSegRie", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            GPS (período) <HelpTooltip {...ayudaCamposCotizacion.gastoGps} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.gastoGps")}`}
+                            value={p.gastoGps ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.gastoGps", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Portes (período) <HelpTooltip {...ayudaCamposCotizacion.portesPer} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.portesPer")}`}
+                            value={p.portesPer ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.portesPer", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Gastos administración (período) <HelpTooltip {...ayudaCamposCotizacion.gasAdmPer} />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.gasAdmPer")}`}
+                            value={p.gasAdmPer ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.gasAdmPer", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Costes notariales <HelpTooltip {...ayudaCamposCotizacion.gastoNotarial} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.gastoNotarial")}`}
+                            value={p.gastoNotarial ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.gastoNotarial", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Costes registrales <HelpTooltip {...ayudaCamposCotizacion.costeRegistral} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.costeRegistral")}`}
+                            value={p.costeRegistral ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.costeRegistral", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Tasación <HelpTooltip {...ayudaCamposCotizacion.costeTasacion} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.costeTasacion")}`}
+                            value={p.costeTasacion ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.costeTasacion", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Comisión de estudio <HelpTooltip {...ayudaCamposCotizacion.comisionEstudio} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.comisionEstudio")}`}
+                            value={p.comisionEstudio ?? ""}
+                            onChange={(e) => handleFieldChange("parametros.comisionEstudio", Number(e.target.value))}
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-sm flex items-center">
+                            Comisión de activación <HelpTooltip {...ayudaCamposCotizacion.comisionActivacion} />
+                          </span>
+                          <input
+                            type="number"
+                            className={`w-full border rounded p-2 bg-white ${mod("parametros.comisionActivacion")}`}
+                            value={p.comisionActivacion ?? ""}
+                            onChange={(e) =>
+                              handleFieldChange("parametros.comisionActivacion", Number(e.target.value))
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">C. Análisis — VAN del deudor (tasa de descuento)</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          El enunciado exige VAN y TIR del deudor. El <strong>COK</strong> es la tasa de descuento con la
+                          que se traen los flujos a valor presente; lo fija el asesor (no se le pregunta al cliente). Default{" "}
+                          <strong>8%</strong> ≈ costo de oportunidad de mercado. Cambiar el COK modifica el VAN; no cambia
+                          la cuota ni la TCEA.
+                        </p>
+                      </div>
+                      <label className="space-y-1 max-w-sm block">
+                        <span className="text-sm flex items-center">
+                          COK / tasa de descuento anual (%)
+                          <HelpTooltip {...ayudaCamposCotizacion.cokAnual} />
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`w-full border rounded p-2 bg-white ${mod("parametros.cokAnual")}`}
+                          value={
+                            p.cokAnual != null ? Number((Number(p.cokAnual) * 100).toFixed(4)) : ""
+                          }
+                          onChange={(e) =>
+                            handleFieldChange("parametros.cokAnual", Number(e.target.value) / 100)
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-slate-100 text-sm space-y-1">
+                      <p className="font-semibold mb-1">Vista previa rápida</p>
+                      <p>Tipo de tasa: TEA</p>
+                      {teaDecimal != null && <p>TEA: {(teaDecimal * 100).toFixed(4)}%</p>}
+                      <p>
+                        Préstamo estimado: {p.monedaOp || "PEN"} {fmtMoney(prestamoEstimado)}
+                      </p>
+                      <p>
+                        % Cuota final: {((Number(p.pctCuotaFinal) || 0) * 100).toFixed(0)}%
+                        {p.residualFlag === false ? " (residual off)" : ""}
+                      </p>
+                      <p>COK (descuento VAN): {((Number(p.cokAnual) || 0) * 100).toFixed(0)}%</p>
+                      <p className="text-slate-600 mt-1">
+                        Usá «Recalcular ahora» para ver TCEA, VAN y TIR antes de guardar la nueva versión.
+                      </p>
+                      <p className="text-slate-600 mt-2">
+                        ¿Necesitás detalle de fórmulas?{" "}
+                        <Link href="/transparencia" className="text-blue-600 hover:underline">
+                          Ir al módulo de transparencia
+                        </Link>
+                      </p>
+                    </div>
+                  </>
+                )
+              })()}
+
+              <div>
                 <Button onClick={handleRecalculate} disabled={isRecalculating}>
-                  {isRecalculating ? 'Recalculando...' : 'Recalcular ahora'}
+                  {isRecalculating ? "Recalculando..." : "Recalcular ahora"}
                 </Button>
               </div>
 
               {isRecalculating && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="space-y-1 text-sm text-blue-800">
-                    <div>Recalculando cronograma...</div>
-                    {/* Loading steps would be shown here */}
-                  </div>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">Recalculando cronograma...</div>
                 </div>
               )}
 
               {recalculationResult && (
-                <div className="mt-6 space-y-4">
+                <div className="space-y-4">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <h3 className="font-semibold text-green-800 mb-2">Indicadores recalculados</h3>
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -647,7 +1047,12 @@ export default function EditCotizacionPage({
                       </div>
                       <div>
                         <p className="text-slate-500">VAN Deudor</p>
-                        <p className="font-medium">{c.moneda} {recalculationResult.indicadores.vanDeudor.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                        <p className="font-medium">
+                          {formData.parametros?.monedaOp || c.monedaOp || "PEN"}{" "}
+                          {recalculationResult.indicadores.vanDeudor.toLocaleString("es-PE", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
                       </div>
                       <div>
                         <p className="text-slate-500">TIR Anual</p>
@@ -657,7 +1062,9 @@ export default function EditCotizacionPage({
                   </div>
 
                   <div className="bg-slate-50 border rounded-lg p-4">
-                    <h3 className="font-semibold mb-2">Nuevo cronograma ({recalculationResult.cronograma.length} cuotas)</h3>
+                    <h3 className="font-semibold mb-2">
+                      Nuevo cronograma ({recalculationResult.cronograma.length} cuotas)
+                    </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 text-slate-700">
@@ -672,7 +1079,9 @@ export default function EditCotizacionPage({
                           {recalculationResult.cronograma.slice(0, 5).map((q: any) => (
                             <tr key={q.numero} className="border-t">
                               <td className="p-2">{q.numero}</td>
-                              <td className="p-2">{new Date(q.fechaVencimiento).toLocaleDateString("es-PE")}</td>
+                              <td className="p-2">
+                                {new Date(q.fechaVencimiento).toLocaleDateString("es-PE")}
+                              </td>
                               <td className="p-2 text-right">{Number(q.cuotaTotal).toFixed(2)}</td>
                               <td className="p-2 text-right">{Number(q.saldoFinal).toFixed(2)}</td>
                             </tr>

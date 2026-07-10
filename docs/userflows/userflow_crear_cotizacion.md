@@ -523,6 +523,9 @@ acceso cuando el asesor consulta una cotización desde el dashboard.
 - Exportar PDF (hoja resumen + cronograma)
 - Nueva versión → crea copia editable manteniendo historial de versiones
 - Archivar → cambia estado a ARCHIVADA
+- **Vencimiento automático:** si una cotización permanece en SIMULADA o
+  PRESENTADA más de **30 días** sin cambio de estado, pasa a ARCHIVADA
+  al consultar el listado o el detalle (campo `estado_desde`).
 
 **Historial de versiones (feature de trazabilidad):**
 Panel lateral colapsable mostrando versiones anteriores de la misma

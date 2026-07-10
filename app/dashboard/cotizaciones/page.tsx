@@ -70,6 +70,10 @@ export default function CotizacionesPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Cotizaciones</h1>
           <p className="text-sm text-slate-600">Historial de simulaciones guardadas</p>
+          <p className="text-xs text-slate-500 mt-1">
+            SIMULADA o PRESENTADA sin cambio de estado por más de 30 días pasan a ARCHIVADA
+            automáticamente.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <a

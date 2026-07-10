@@ -1,27 +1,16 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { use, useState, useEffect, type ReactNode } from "react"
 import Link from "next/link"
-
-export const dynamic = "force-dynamic"
-
-async function getCotizacion(id: string) {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/cotizaciones/${id}`,
-    { cache: "no-store" }
-  )
-
-  if (!res.ok) return null
-  const data = await res.json()
-  return data.cotizacion
-}
+import { useRouter } from "next/navigation"
 
 export default function CotizacionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const [id, setId] = useState<string>("")
+  const { id: paramId } = use(params)
+  const router = useRouter()
   const [cotizacion, setCotizacion] = useState<any>(null)
   const [versiones, setVersiones] = useState<any[]>([])
   const [familia, setFamilia] = useState<any>(null)
@@ -31,41 +20,112 @@ export default function CotizacionDetailPage({
   const [generatingLink, setGeneratingLink] = useState(false)
   const [linkMessage, setLinkMessage] = useState("")
   const [viewMode, setViewMode] = useState<"comercial" | "academica">("comercial")
+  const [activando, setActivando] = useState(false)
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  const [menuMasAbierto, setMenuMasAbierto] = useState(false)
+
+  async function generarEnlaceCliente() {
+    setGeneratingLink(true)
+    setLinkMessage("")
+    setMenuMasAbierto(false)
+    try {
+      const res = await fetch(`/api/cotizaciones/${paramId}/public-link`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "No se pudo generar enlace")
+
+      const absoluteUrl = `${window.location.origin}${data.publicUrl}`
+      setPublicLink(absoluteUrl)
+      await navigator.clipboard.writeText(absoluteUrl)
+      setLinkMessage("Enlace público generado y copiado.")
+    } catch (e: any) {
+      setLinkMessage(e?.message || "Error generando enlace público")
+    } finally {
+      setGeneratingLink(false)
+    }
+  }
+
+  async function activarOperacion() {
+    setActivando(true)
+    try {
+      const res = await fetch("/api/operaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cotizacionId: paramId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "No se pudo activar operación")
+      }
+      const operacionId = data.operacion?.id
+      router.push(
+        operacionId ? `/dashboard/pagos?operacionId=${operacionId}` : "/dashboard/pagos"
+      )
+      router.refresh()
+    } catch (e: any) {
+      alert(e.message || "Error activando operación")
+    } finally {
+      setActivando(false)
+    }
+  }
+
+  async function cambiarEstado(nuevoEstado: "PRESENTADA" | "RECHAZADA" | "ARCHIVADA") {
+    const labels: Record<string, string> = {
+      PRESENTADA: "presentar esta cotización al cliente",
+      RECHAZADA: "marcarla como rechazada",
+      ARCHIVADA: "archivarla",
+    }
+    if (!confirm(`¿Confirmas ${labels[nuevoEstado]}?`)) return
+
+    setCambiandoEstado(true)
+    try {
+      const res = await fetch(`/api/cotizaciones/${paramId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: nuevoEstado }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "No se pudo cambiar el estado")
+      setCotizacion((prev: any) => (prev ? { ...prev, estado: nuevoEstado } : prev))
+      router.refresh()
+    } catch (e: any) {
+      alert(e.message || "Error cambiando estado")
+    } finally {
+      setCambiandoEstado(false)
+    }
+  }
 
   useEffect(() => {
-    params.then(({ id: paramId }) => {
-      setId(paramId)
-      fetchCotizacion(paramId)
-      fetchVersiones(paramId)
-    })
-  }, [params])
-
-  const fetchCotizacion = async (cotId: string) => {
-    try {
-      const res = await fetch(`/api/cotizaciones/${cotId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setCotizacion(data.cotizacion)
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const [cotRes, verRes] = await Promise.all([
+          fetch(`/api/cotizaciones/${paramId}`),
+          fetch(`/api/cotizaciones/${paramId}/versiones`),
+        ])
+        if (cancelled) return
+        if (cotRes.ok) {
+          const data = await cotRes.json()
+          setCotizacion(data.cotizacion)
+        } else {
+          setCotizacion(null)
+        }
+        if (verRes.ok) {
+          const data = await verRes.json()
+          setVersiones(data.versiones || [])
+          setFamilia(data.familia || null)
+        }
+      } catch (error) {
+        console.error("Error fetching cotizacion:", error)
+        if (!cancelled) setCotizacion(null)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-    } catch (error) {
-      console.error("Error fetching cotizacion:", error)
-    } finally {
-      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
-
-  const fetchVersiones = async (cotId: string) => {
-    try {
-      const res = await fetch(`/api/cotizaciones/${cotId}/versiones`)
-      if (res.ok) {
-        const data = await res.json()
-        setVersiones(data.versiones)
-        setFamilia(data.familia || null)
-      }
-    } catch (error) {
-      console.error("Error fetching versiones:", error)
-    }
-  }
+  }, [paramId])
 
   if (loading) {
     return (
@@ -85,116 +145,170 @@ export default function CotizacionDetailPage({
 
   const esVersionActiva = familia ? Number(cotizacion.version) === Number(familia.latestVersion) : true
   const totalVersiones = familia?.totalVersiones ?? versiones.length
+  const puedeEditar = cotizacion.estado === "SIMULADA" || cotizacion.estado === "PRESENTADA"
+  const puedeActivar = !cotizacion.operacion && cotizacion.estado === "PRESENTADA"
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Cotización #{cotizacion.id}</h1>
-            <p className="text-sm text-slate-600">Estado: {cotizacion.estado}</p>
-            <p className="text-sm text-slate-600">
-              Familia de versiones: {familia?.id ? `#${familia.id}` : "No identificada"} · Versión {cotizacion.version}
-              {esVersionActiva ? " (activa)" : " (histórica)"}
-            </p>
-          </div>
-           <div className="flex gap-4 items-center">
-              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-                <button
-                  onClick={() => setViewMode("comercial")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    viewMode === "comercial"
-                      ? "bg-white shadow text-slate-900"
-                      : "text-slate-500 hover:text-slate-700"
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <Link
+                href="/dashboard/cotizaciones"
+                className="text-sm text-slate-500 hover:text-slate-800 hover:underline"
+              >
+                ← Volver al listado
+              </Link>
+              <h1 className="mt-1 text-2xl font-bold text-slate-900">Cotización #{cotizacion.id}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    cotizacion.estado === "SIMULADA"
+                      ? "bg-sky-100 text-sky-800"
+                      : cotizacion.estado === "PRESENTADA"
+                        ? "bg-indigo-100 text-indigo-800"
+                        : cotizacion.estado === "APROBADA"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : cotizacion.estado === "RECHAZADA"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  Vista Comercial
-                </button>
-                <button
-                  onClick={() => setViewMode("academica")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    viewMode === "academica"
-                      ? "bg-white shadow text-slate-900"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  Vista Académica
-                </button>
+                  {cotizacion.estado}
+                </span>
+                <span>
+                  Familia #{familia?.id ?? "—"} · v{cotizacion.version}
+                  {esVersionActiva ? " (activa)" : " (histórica)"}
+                </span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("comercial")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "comercial"
+                    ? "bg-white text-slate-900 shadow"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Comercial
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("academica")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  viewMode === "academica"
+                    ? "bg-white text-slate-900 shadow"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Académica
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={`/dashboard/cotizaciones/${cotizacion.id}/hoja-resumen`}
-                className="px-4 py-2 border border-slate-300 text-slate-800 rounded-lg hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
               >
                 Hoja resumen
               </Link>
-              {(cotizacion.estado === 'SIMULADA' || cotizacion.estado === 'PRESENTADA') && (
+              {puedeEditar && (
                 <Link
                   href={`/dashboard/cotizaciones/${cotizacion.id}/editar`}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 >
-                  Editar cotización
+                  Editar
                 </Link>
               )}
-              <button
-                onClick={async () => {
-                  setGeneratingLink(true)
-                  setLinkMessage("")
-                  try {
-                    const res = await fetch(`/api/cotizaciones/${cotizacion.id}/public-link`)
-                    const data = await res.json()
-                    if (!res.ok) throw new Error(data.error || "No se pudo generar enlace")
-
-                    const absoluteUrl = `${window.location.origin}${data.publicUrl}`
-                    setPublicLink(absoluteUrl)
-                    await navigator.clipboard.writeText(absoluteUrl)
-                    setLinkMessage("Enlace público generado y copiado.")
-                  } catch (e: any) {
-                    setLinkMessage(e?.message || "Error generando enlace público")
-                  } finally {
-                    setGeneratingLink(false)
-                  }
-                }}
-                className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
-                disabled={generatingLink}
-              >
-                {generatingLink ? "Generando enlace..." : "Generar enlace cliente"}
-              </button>
-              {!cotizacion.operacion && (
+              <div className="relative">
                 <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/operaciones', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cotizacionId: cotizacion.id }),
-                      })
-                      if (!res.ok) {
-                        const err = await res.json()
-                        throw new Error(err.error || 'No se pudo activar operación')
-                      }
-                      window.location.href = '/dashboard/pagos'
-                    } catch (e: any) {
-                      alert(e.message || 'Error activando operación')
-                    }
-                  }}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                  type="button"
+                  onClick={() => setMenuMasAbierto((v) => !v)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  aria-expanded={menuMasAbierto}
                 >
-                  Activar operación
+                  Más ▾
+                </button>
+                {menuMasAbierto && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-10 cursor-default"
+                      aria-label="Cerrar menú"
+                      onClick={() => setMenuMasAbierto(false)}
+                    />
+                    <div className="absolute left-0 z-20 mt-1 min-w-[14rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => void generarEnlaceCliente()}
+                        disabled={generatingLink}
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {generatingLink ? "Generando enlace…" : "Generar enlace cliente"}
+                      </button>
+                      {cotizacion.operacion && (
+                        <Link
+                          href={`/dashboard/pagos?operacionId=${cotizacion.operacion.id}`}
+                          className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          onClick={() => setMenuMasAbierto(false)}
+                        >
+                          Ir a pagos anticipados
+                        </Link>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {cotizacion.estado === "PRESENTADA" && (
+                <button
+                  type="button"
+                  onClick={() => cambiarEstado("RECHAZADA")}
+                  disabled={cambiandoEstado}
+                  className="rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                >
+                  Rechazar
                 </button>
               )}
-              {cotizacion.operacion && (
+              {cotizacion.estado === "SIMULADA" && (
+                <button
+                  type="button"
+                  onClick={() => cambiarEstado("PRESENTADA")}
+                  disabled={cambiandoEstado}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Presentar al cliente
+                </button>
+              )}
+              {puedeActivar && (
+                <button
+                  type="button"
+                  onClick={() => void activarOperacion()}
+                  disabled={activando}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {activando ? "Activando…" : "Activar operación"}
+                </button>
+              )}
+              {cotizacion.operacion && cotizacion.estado === "APROBADA" && (
                 <Link
                   href={`/dashboard/pagos?operacionId=${cotizacion.operacion.id}`}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
                 >
                   Ir a pagos anticipados
                 </Link>
               )}
-              <Link href="/dashboard/cotizaciones" className="text-blue-600 hover:underline">
-                Volver al listado
-              </Link>
+            </div>
           </div>
-         </div>
+        </div>
       </header>
 
       {(publicLink || linkMessage) && (
@@ -281,17 +395,17 @@ export default function CotizacionDetailPage({
             <table className="w-full text-sm">
               <thead className="bg-slate-100 text-slate-700">
                 <tr>
-                  <th className="text-left p-2">N°</th>
-                  <th className="text-center p-2">PG</th>
-                  <th className="text-left p-2">Tipo</th>
-                  <th className="text-left p-2">Fecha</th>
-                  <th className="text-right p-2">Saldo inicial</th>
-                  <th className="text-right p-2">Interés</th>
-                  <th className="text-right p-2">Amort.</th>
-                  <th className="text-right p-2">Seguros</th>
-                  <th className="text-right p-2">GPS/Portes/Adm</th>
-                  <th className="text-right p-2">Cuota total</th>
-                  <th className="text-right p-2">Saldo final</th>
+                  <CronoTh align="left" label="Número de cuota">N°</CronoTh>
+                  <CronoTh align="center" label="Periodo de gracia (T = total, P = parcial, S = sin gracia)">PG</CronoTh>
+                  <CronoTh align="left" label="Tipo de cuota">Tipo</CronoTh>
+                  <CronoTh align="left" label="Fecha de vencimiento">Fecha</CronoTh>
+                  <CronoTh label="Saldo inicial">Saldo inicial</CronoTh>
+                  <CronoTh label="Interés del período">Interés</CronoTh>
+                  <CronoTh label="Amortización de capital">Amort.</CronoTh>
+                  <CronoTh label="Seguros (desgravamen + vehicular)">Seguros</CronoTh>
+                  <CronoTh label="GPS, portes y gastos administrativos">GPS/Portes/Adm</CronoTh>
+                  <CronoTh label="Cuota total del período">Cuota total</CronoTh>
+                  <CronoTh label="Saldo final">Saldo final</CronoTh>
                 </tr>
               </thead>
               <tbody>
@@ -348,7 +462,7 @@ export default function CotizacionDetailPage({
                     <td className="p-2 text-right">{Number(v.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>
                     <td className="p-2 text-right">{v.plazoMeses} meses</td>
                     <td className="p-2 text-right">{Number(v.tcea).toFixed(4)}%</td>
-                    <td className="p-2">{v.motivoEdicion || '-'}</td>
+                    <td className="p-2">{labelMotivo(v.motivoEdicion)}</td>
                     <td className="p-2">
                       <div className="flex gap-2">
                         <Link
@@ -471,23 +585,23 @@ export default function CotizacionDetailPage({
                 <table className="w-full text-xs">
                   <thead className="bg-slate-100 text-slate-700">
                     <tr>
-                      <th className="text-left p-2">N°</th>
-                      <th className="text-center p-2">PG</th>
-                      <th className="text-right p-2">SI CF</th>
-                      <th className="text-right p-2">I CF</th>
-                      <th className="text-right p-2">A CF</th>
-                      <th className="text-right p-2">SF CF</th>
-                      <th className="text-right p-2">SI</th>
-                      <th className="text-right p-2">Interés</th>
-                      <th className="text-right p-2">Cuota</th>
-                      <th className="text-right p-2">Amort.</th>
-                      <th className="text-right p-2">SegDes</th>
-                      <th className="text-right p-2">SegRie</th>
-                      <th className="text-right p-2">GPS</th>
-                      <th className="text-right p-2">Portes</th>
-                      <th className="text-right p-2">GasAdm</th>
-                      <th className="text-right p-2">SF</th>
-                      <th className="text-right p-2">Flujo</th>
+                      <CronoTh align="left" label="Número de cuota / período">N°</CronoTh>
+                      <CronoTh align="center" label="Periodo de gracia (T = total, P = parcial, S = sin gracia)">PG</CronoTh>
+                      <CronoTh label="Saldo inicial de la cuota final (balón)">SI CF</CronoTh>
+                      <CronoTh label="Interés de la cuota final (balón)">I CF</CronoTh>
+                      <CronoTh label="Amortización de la cuota final (balón)">A CF</CronoTh>
+                      <CronoTh label="Saldo final de la cuota final (balón)">SF CF</CronoTh>
+                      <CronoTh label="Saldo inicial (cuota regular)">SI</CronoTh>
+                      <CronoTh label="Interés del período (cuota regular)">Interés</CronoTh>
+                      <CronoTh label="Cuota periódica (método francés)">Cuota</CronoTh>
+                      <CronoTh label="Amortización de capital">Amort.</CronoTh>
+                      <CronoTh label="Seguro de desgravamen">SegDes</CronoTh>
+                      <CronoTh label="Seguro de riesgo / vehicular">SegRie</CronoTh>
+                      <CronoTh label="Gasto GPS">GPS</CronoTh>
+                      <CronoTh label="Portes">Portes</CronoTh>
+                      <CronoTh label="Gastos administrativos">GasAdm</CronoTh>
+                      <CronoTh label="Saldo final (cuota regular)">SF</CronoTh>
+                      <CronoTh label="Flujo de caja del deudor">Flujo</CronoTh>
                     </tr>
                   </thead>
                   <tbody>
@@ -522,88 +636,248 @@ export default function CotizacionDetailPage({
 
       {/* Comparison Modal */}
       {comparisonModal.open && comparisonModal.version && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  Comparación: v{cotizacion.version} vs v{comparisonModal.version.version}
-                </h3>
-                <button
-                  onClick={() => setComparisonModal({open: false})}
-                  className="text-slate-500 hover:text-slate-700"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-slate-50 rounded">
-                  <p className="text-sm text-slate-500">Versión Actual</p>
-                  <p className="font-semibold">v{cotizacion.version}</p>
-                </div>
-                <div className="text-center p-4 bg-blue-50 rounded">
-                  <p className="text-sm text-slate-500">Comparando con</p>
-                  <p className="font-semibold">v{comparisonModal.version.version}</p>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded">
-                  <p className="text-sm text-slate-500">Motivo de cambio</p>
-                  <p className="font-semibold">{comparisonModal.version.motivoEdicion || 'Sin motivo'}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-2">Indicadores Financieros</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span>TCEA:</span>
-                      <div className="flex items-center gap-2">
-                        <span>{Number(cotizacion.tcea).toFixed(4)}%</span>
-                        {cotizacion.tcea !== comparisonModal.version.tcea && (
-                          <span className={cotizacion.tcea < comparisonModal.version.tcea ? 'text-green-600' : 'text-red-600'}>
-                            {cotizacion.tcea < comparisonModal.version.tcea ? '↓' : '↑'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>vs {Number(comparisonModal.version.tcea).toFixed(4)}%</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-medium mb-2">Parámetros</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>Monto financiado:</span>
-                      <span>{Number(cotizacion.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>vs {Number(comparisonModal.version.montoFinanc).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Plazo:</span>
-                      <div className="flex items-center gap-2">
-                        <span>{cotizacion.plazoMeses} meses</span>
-                        {cotizacion.plazoMeses !== comparisonModal.version.plazoMeses && (
-                          <span className={cotizacion.plazoMeses > comparisonModal.version.plazoMeses ? 'text-green-600' : 'text-red-600'}>
-                            {cotizacion.plazoMeses > comparisonModal.version.plazoMeses ? '↑' : '↓'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>vs {comparisonModal.version.plazoMeses} meses</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <VersionComparisonModal
+          actual={cotizacion}
+          anterior={comparisonModal.version}
+          onClose={() => setComparisonModal({ open: false })}
+        />
       )}
     </div>
+  )
+}
+
+const MOTIVO_LABELS: Record<string, string> = {
+  cliente: "Solicitud del cliente",
+  comercial: "Ajuste de condiciones comerciales",
+  datos: "Corrección de datos",
+  comparativa: "Comparativa de escenarios",
+  otro: "Otro",
+}
+
+function labelMotivo(raw: string | null | undefined) {
+  if (!raw) return "Sin motivo"
+  return MOTIVO_LABELS[raw] ?? raw
+}
+
+function fmtMoney(value: unknown) {
+  return Number(value ?? 0).toLocaleString("es-PE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+/** TEA/TCEA/TIR: si viene en decimal (0.18) → %, si ya viene en % lo deja. */
+function fmtRatePct(value: unknown, digits = 4) {
+  const n = Number(value ?? 0)
+  const pct = Math.abs(n) > 0 && Math.abs(n) < 1 ? n * 100 : n
+  return `${pct.toFixed(digits)}%`
+}
+
+function num(value: unknown) {
+  return Number(value ?? 0)
+}
+
+type CompareRow = {
+  label: string
+  anterior: string
+  actual: string
+  delta: number | null
+  /** lowerIsBetter: ↓ verde cuando baja (TCEA, cuota, etc.) */
+  lowerIsBetter?: boolean
+}
+
+function VersionComparisonModal({
+  actual,
+  anterior,
+  onClose,
+}: {
+  actual: any
+  anterior: any
+  onClose: () => void
+}) {
+  const rows: CompareRow[] = [
+    {
+      label: "TEA",
+      anterior: fmtRatePct(anterior.tea ?? anterior.tasaIngresada),
+      actual: fmtRatePct(actual.tea ?? actual.tasaIngresada),
+      delta: num(actual.tea ?? actual.tasaIngresada) - num(anterior.tea ?? anterior.tasaIngresada),
+      lowerIsBetter: true,
+    },
+    {
+      label: "TCEA",
+      anterior: fmtRatePct(anterior.tcea),
+      actual: fmtRatePct(actual.tcea),
+      delta: num(actual.tcea) - num(anterior.tcea),
+      lowerIsBetter: true,
+    },
+    {
+      label: "Cuota inicial (%)",
+      anterior: `${num(anterior.cuotaIniPct).toFixed(2)}%`,
+      actual: `${num(actual.cuotaIniPct).toFixed(2)}%`,
+      delta: num(actual.cuotaIniPct) - num(anterior.cuotaIniPct),
+    },
+    {
+      label: "Cuota inicial (monto)",
+      anterior: fmtMoney(anterior.cuotaIniMnt),
+      actual: fmtMoney(actual.cuotaIniMnt),
+      delta: num(actual.cuotaIniMnt) - num(anterior.cuotaIniMnt),
+    },
+    {
+      label: "Monto financiado",
+      anterior: fmtMoney(anterior.montoFinanc),
+      actual: fmtMoney(actual.montoFinanc),
+      delta: num(actual.montoFinanc) - num(anterior.montoFinanc),
+    },
+    {
+      label: "Plazo",
+      anterior: `${anterior.plazoMeses} meses`,
+      actual: `${actual.plazoMeses} meses`,
+      delta: num(actual.plazoMeses) - num(anterior.plazoMeses),
+    },
+    {
+      label: "Total a pagar",
+      anterior: fmtMoney(anterior.totPagado),
+      actual: fmtMoney(actual.totPagado),
+      delta: num(actual.totPagado) - num(anterior.totPagado),
+      lowerIsBetter: true,
+    },
+    {
+      label: "Costo del crédito",
+      anterior: fmtMoney(anterior.costoCredito),
+      actual: fmtMoney(actual.costoCredito),
+      delta: num(actual.costoCredito) - num(anterior.costoCredito),
+      lowerIsBetter: true,
+    },
+    {
+      label: "VAN deudor",
+      anterior: fmtMoney(anterior.vanDeudor),
+      actual: fmtMoney(actual.vanDeudor),
+      delta: num(actual.vanDeudor) - num(anterior.vanDeudor),
+      lowerIsBetter: false,
+    },
+    {
+      label: "TIR anual",
+      anterior: fmtRatePct(anterior.tirAnual),
+      actual: fmtRatePct(actual.tirAnual),
+      delta: num(actual.tirAnual) - num(anterior.tirAnual),
+      lowerIsBetter: true,
+    },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b p-6">
+          <h3 className="text-lg font-semibold">
+            Comparación: v{actual.version} vs v{anterior.version}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-700"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-6 p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg bg-slate-50 p-4 text-center">
+              <p className="text-sm text-slate-500">Versión actual</p>
+              <p className="font-semibold">v{actual.version}</p>
+            </div>
+            <div className="rounded-lg bg-blue-50 p-4 text-center">
+              <p className="text-sm text-slate-500">Valor anterior</p>
+              <p className="font-semibold">v{anterior.version}</p>
+            </div>
+            <div className="rounded-lg bg-green-50 p-4 text-center">
+              <p className="text-sm text-slate-500">Motivo del cambio (v{actual.version})</p>
+              <p className="font-semibold">{labelMotivo(actual.motivoEdicion)}</p>
+              {anterior.motivoEdicion && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Anterior (v{anterior.version}): {labelMotivo(anterior.motivoEdicion)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-slate-700">
+                <tr>
+                  <th className="p-3 text-left font-medium">Indicador</th>
+                  <th className="p-3 text-right font-medium">
+                    Anterior (v{anterior.version})
+                  </th>
+                  <th className="p-3 text-right font-medium">
+                    Actual (v{actual.version})
+                  </th>
+                  <th className="p-3 text-center font-medium">Cambio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const changed = row.delta != null && Math.abs(row.delta) > 1e-9
+                  const favorable =
+                    changed && row.lowerIsBetter != null
+                      ? row.lowerIsBetter
+                        ? row.delta! < 0
+                        : row.delta! > 0
+                      : null
+                  return (
+                    <tr key={row.label} className="border-t">
+                      <td className="p-3 text-slate-700">{row.label}</td>
+                      <td className="p-3 text-right text-slate-600 tabular-nums">
+                        {row.anterior}
+                      </td>
+                      <td className="p-3 text-right font-medium tabular-nums">
+                        {row.actual}
+                      </td>
+                      <td className="p-3 text-center">
+                        {!changed ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <span
+                            className={
+                              favorable === true
+                                ? "font-medium text-emerald-600"
+                                : favorable === false
+                                  ? "font-medium text-red-600"
+                                  : "font-medium text-slate-600"
+                            }
+                          >
+                            {row.delta! > 0 ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CronoTh({
+  children,
+  label,
+  align = "right",
+}: {
+  children: ReactNode
+  label: string
+  align?: "left" | "center" | "right"
+}) {
+  const alignClass =
+    align === "left" ? "text-left" : align === "center" ? "text-center" : "text-right"
+
+  return (
+    <th className={`${alignClass} p-2 cursor-help`} title={label}>
+      <span className="border-b border-dotted border-slate-400">{children}</span>
+    </th>
   )
 }

@@ -119,7 +119,9 @@ export function resolverContextoOperacion(cuotas: CuotaOperacionLike[], saldoAct
   const cuotasPendientes = cuotas.slice(indice)
   const cuotaReferencia = cuotasPendientes[0] ?? cuotas[0]
   const cuotaExigible = round2(cuotaReferencia.cuotaTotal)
-  const interesesRestantes = round2(cuotasPendientes.reduce((acc, c) => acc + c.interes, 0))
+  const interesesRestantes = round2(
+    cuotasPendientes.reduce((acc, c) => acc + Math.abs(c.interes), 0)
+  )
 
   const fechaUltimaCuota =
     indice > 0 ? cuotas[indice - 1].fecVencimiento : addDays(cuotaReferencia.fecVencimiento, -30)
@@ -266,7 +268,12 @@ export function recalcularCronogramaPorAnticipado(params: {
   }
 
   const totales = calcularTotales(cronograma, saldoNuevo)
-  const ahorroIntereses = round2(interesesRestantesOriginales - totales.totalIntereses)
+  // Ahorro = intereses de cuota regular evitados (no incluir interesCF del track residual:
+  // es contabilidad del balón, no interés cobrado mes a mes al cliente).
+  const interesesNuevosRegulares = round2(
+    cronograma.reduce((acc, c) => acc + Math.abs(c.interes), 0)
+  )
+  const ahorroIntereses = round2(interesesRestantesOriginales - interesesNuevosRegulares)
 
   return {
     modalidad,
@@ -278,7 +285,7 @@ export function recalcularCronogramaPorAnticipado(params: {
     tirMensualPct,
     tirAnualPct,
     tirNoConverge,
-    totalIntereses: totales.totalIntereses,
+    totalIntereses: interesesNuevosRegulares,
     totalPagado: totales.totalPagado,
     ahorroIntereses,
     fechaTermino: cronograma[cronograma.length - 1]?.fechaVencimiento ?? fechaPrimeraCuotaNueva,

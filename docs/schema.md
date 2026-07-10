@@ -846,7 +846,9 @@ text
 | `BORRADOR`          | En construcción, datos incompletos o en revisión        |
 | `SIMULADA`          | Cálculos ejecutados, cronograma generado, lista para presentar |
 | `PRESENTADA`        | Entregada o enviada al cliente para su evaluación       |
-| `ARCHIVADA`         | Descartada definitivamente (no llegó a formalizarse)    |
+| `ARCHIVADA`         | Descartada o vencida: SIMULADA/PRESENTADA sin cambio de |
+|                     | estado por más de 30 días (archivado automático), o     |
+|                     | descarte manual                                         |
 | `ARCHIVADA_VERSION` | Versión anterior de una cotización editada; conservada  |
 |                     | para historial y auditoría                              |
 
